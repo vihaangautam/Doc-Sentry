@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: #0f172a; /* Fallback */
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 25%), 
+    radial-gradient(circle at 85% 30%, rgba(190, 242, 100, 0.05), transparent 25%);
+  color: #f8fafc; /* Slate 50 */
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+@layer components {
+  /* Glassmorphism Cards */
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-glass rounded-2xl transition-all duration-300;
+  }
+  
+  .glass-card:hover {
+    @apply bg-white/10 border-white/20 shadow-card-hover -translate-y-1;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply bg-primary text-white font-bold px-6 py-3 rounded-xl transition-all duration-300 
+           shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)]
+           hover:bg-primary-hover hover:-translate-y-0.5 active:translate-y-0 active:scale-95;
+  }
+
+  .btn-ghost {
+    @apply text-slate-400 hover:text-white hover:bg-white/5 px-4 py-2 rounded-lg transition-colors;
+  }
+
+  /* Inputs */
+  .input-field {
+    @apply bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-slate-200 
+           outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all
+           placeholder:text-slate-600;
+  }
+
+  /* Typography */
+  .display-text {
+    @apply font-extrabold tracking-tight;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
