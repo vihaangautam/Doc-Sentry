@@ -26,7 +26,7 @@ def extract_investment_details(file_content: bytes, mime_type: str):
         prompt = """
         You are a Ruthless Financial Auditor. Your job is to extract specific financial data from this insurance/investment document to calculate the REAL return (XIRR).
         
-        Extract the following fields in strict JSON format:
+        Extract the following fields in strict JSON format(I have given you the format and examples):
         {
             "policy_name": "Name of the plan",
             "premium_amount": Number (annualized amount preferably, or clear indication),
@@ -68,7 +68,7 @@ def extract_loan_details(file_content: bytes, mime_type: str):
         prompt = """
         You are a Ruthless Financial Auditor checks Loan Sanction Letters.
         
-        Extract the following fields in strict JSON format:
+        Extract the following fields in strict JSON format(I have given you the format and examples):
         {
             "bank_name": "Name of Bank/Lender",
             "loan_amount": Number (Sanctioned Amount),
@@ -100,7 +100,7 @@ def extract_salary_details(file_content: bytes, mime_type: str):
         prompt = """
         You are a Ruthless Financial Auditor checks Job Offer Letters / CTC Breakdowns.
         
-        Extract the following fields in strict JSON format:
+        Extract the following fields in strict JSON format(I have given you the format and examples):
         {
             "company_name": "Name of Company",
             "ctc_annual": Number (Total Cost to Company),
@@ -115,10 +115,16 @@ def extract_salary_details(file_content: bytes, mime_type: str):
             "insurance_benefit_annual": Number (Health insurance cost in CTC),
             "variable_performance_bonus_annual": Number,
             "other_deductions_monthly": Number,
-             "red_flags": ["Notice period > 60 days", "Bond agreement", "Variable pay > 20% of CTC"]
+            "red_flags": ["List of suspicious terms, missing standard benefits, or high deductions"],
+            "negotiation_tips": ["List of specific levers to negotiate based on this offer"]
         }
         
-        If monthly amounts are not given but annual are, divide by 12. If specific components aren't found, use 0.
+        CRITICAL INSTRUCTIONS:
+        1. Parse the document OCR text carefully.
+        2. Calculate monthly values if only annual are provided (divide by 12).
+        3. Identify any missing standard components (like PF, Insurance) as red flags.
+        4. If Tax (Professional or Income) is 0, flag it as a red flag.
+        5. Return strict JSON. No markdown.
         """
         response = model.generate_content([{'mime_type': mime_type, 'data': file_content}, prompt])
         text = response.text
@@ -127,4 +133,3 @@ def extract_salary_details(file_content: bytes, mime_type: str):
         return json.loads(text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Extraction Failed: {str(e)}")
-

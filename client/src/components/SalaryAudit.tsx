@@ -1,10 +1,46 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { formatINR } from '../utils/financialMath';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import ChatAdvisor from './ChatAdvisor';
-import { Banknote, FileText, AlertTriangle, Wallet, CheckCircle2, UploadCloud } from 'lucide-react';
+import {
+    Banknote,
+    FileText,
+    AlertTriangle,
+    Wallet,
+    CheckCircle2,
+    UploadCloud,
+    MessageCircle,
+    TrendingUp,
+    ChevronRight,
+    Calculator,
+    PieChart as PieIcon,
+    ShieldAlert,
+    Zap,
+    ChevronDown
+} from 'lucide-react';
+
+// Manual Categorization Logic
+const getRiskCategory = (text: string) => {
+    const lower = text.toLowerCase();
+    if (lower.includes('tax') || lower.includes('tds')) return { title: 'Tax Liability', severity: 'high' as const };
+    if (lower.includes('pf') || lower.includes('provident')) return { title: 'PF Compliance', severity: 'medium' as const };
+    if (lower.includes('notice') || lower.includes('bond') || lower.includes('separation')) return { title: 'Exit Policy', severity: 'high' as const };
+    if (lower.includes('variable') || lower.includes('performance') || lower.includes('bonus')) return { title: 'Variable Pay Risk', severity: 'medium' as const };
+    if (lower.includes('gratutity') || lower.includes('insurance')) return { title: 'Benefits Gap', severity: 'medium' as const };
+    return { title: 'General Anomaly', severity: 'low' as const };
+};
+
+const getNegotiationCategory = (text: string) => {
+    const lower = text.toLowerCase();
+    if (lower.includes('bonus') || lower.includes('joining') || lower.includes('sign')) return { title: 'Joining Bonus' };
+    if (lower.includes('relocation') || lower.includes('moving')) return { title: 'Relocation Package' };
+    if (lower.includes('variable') || lower.includes('base') || lower.includes('fix')) return { title: 'Base vs Variable' };
+    if (lower.includes('esop') || lower.includes('equity') || lower.includes('stock')) return { title: 'Equity / ESOPs' };
+    if (lower.includes('notice') || lower.includes('buyout')) return { title: 'Notice Period Buyout' };
+    return { title: 'Salary Structure' };
+};
 
 interface SalaryData {
     company_name: string;
@@ -20,7 +56,9 @@ interface SalaryData {
     insurance_benefit_annual: number;
     variable_performance_bonus_annual: number;
     other_deductions_monthly: number;
+    // Reverted to strings for manual processing
     red_flags: string[];
+    negotiation_tips?: string[];
 }
 
 const SalaryAudit: React.FC = () => {
@@ -28,7 +66,13 @@ const SalaryAudit: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<SalaryData | null>(null);
     const [inHandMonthly, setInHandMonthly] = useState<number | null>(null);
+    const [deductionsMonthly, setDeductionsMonthly] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [view, setView] = useState<'upload' | 'dashboard'>('upload');
+
+    // New State for Accordion expansion
+    const [expandedRisk, setExpandedRisk] = useState<number | null>(null);
+    const [expandedNeg, setExpandedNeg] = useState<number | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -60,6 +104,8 @@ const SalaryAudit: React.FC = () => {
 
             const inHand = monthlyGross - monthlyDeductions;
             setInHandMonthly(inHand);
+            setDeductionsMonthly(monthlyDeductions);
+            setView('dashboard');
 
         } catch (err) {
             console.error(err);
@@ -72,175 +118,315 @@ const SalaryAudit: React.FC = () => {
     const getChartData = () => {
         if (!data || !inHandMonthly) return [];
         return [
-            { name: 'In-Hand', value: inHandMonthly * 12, color: '#10b981' }, // Emerald
-            { name: 'PF/Gratuity (Locked)', value: (data.pf_employer_annual || 0) + (data.gratuity_annual || 0) + ((data.pf_employee_monthly || 0) * 12), color: '#3b82f6' }, // Blue
-            { name: 'Taxes/Deductions', value: ((data.professional_tax_monthly || 0) * 12) + ((data.insurance_benefit_annual || 0)), color: '#ef4444' }, // Red
-            { name: 'Variable/Bonus', value: data.variable_performance_bonus_annual || 0, color: '#a855f7' }, // Purple
+            { name: 'In-Hand', value: inHandMonthly * 12, color: '#10b981', desc: 'Liquid Cash' }, // Emerald
+            { name: 'PF/Gratuity', value: (data.pf_employer_annual || 0) + (data.gratuity_annual || 0) + ((data.pf_employee_monthly || 0) * 12), color: '#3b82f6', desc: 'Locked Retirement' }, // Blue
+            { name: 'Taxes', value: ((data.professional_tax_monthly || 0) * 12) + ((data.insurance_benefit_annual || 0)), color: '#ef4444', desc: 'Deductions' }, // Red
+            { name: 'Variable', value: data.variable_performance_bonus_annual || 0, color: '#a855f7', desc: 'Performance Based' }, // Purple
         ].filter(item => item.value > 0);
     };
 
     return (
         <div className="space-y-6">
-            {/* Hero / Upload Section */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-            >
-                {/* Upload Card */}
-                <div className="lg:col-span-2 glass-card p-8 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none"></div>
+            <AnimatePresence mode="wait">
+                {view === 'upload' ? (
+                    <motion.div
+                        key="upload"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="w-full max-w-2xl mx-auto py-12"
+                    >
+                        {/* Centered Upload Hero */}
+                        <div className="glass-card p-12 relative overflow-hidden group text-center border border-emerald-500/20 shadow-[0_0_50px_rgba(16,185,129,0.1)]">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none"></div>
 
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="p-3 bg-emerald-500/20 rounded-xl">
-                                <Banknote className="text-emerald-400" size={32} />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-display font-bold text-white">Salary Reality</h1>
-                                <p className="text-slate-400 text-sm">Decode offer letters & payslips to find true in-hand salary</p>
-                            </div>
-                        </div>
-
-                        <div className="border-2 border-dashed border-slate-700/50 rounded-2xl p-10 hover:border-emerald-500/50 hover:bg-slate-800/30 transition-all text-center group-hover:shadow-[inset_0_0_20px_rgba(16,185,129,0.05)]">
-                            <input
-                                type="file"
-                                id="salary-upload"
-                                accept=".pdf,image/*"
-                                onChange={handleFileChange}
-                                className="hidden"
-                            />
-                            <label htmlFor="salary-upload" className="cursor-pointer flex flex-col items-center gap-4">
-                                <div className={`p-4 rounded-full transition-all duration-300 ${file ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400 group-hover:text-emerald-400 group-hover:scale-110'}`}>
-                                    {file ? <CheckCircle2 size={32} /> : <UploadCloud size={32} />}
+                            <div className="relative z-10 flex flex-col items-center">
+                                <div className="p-4 bg-emerald-500/10 rounded-2xl mb-6 shadow-inner ring-1 ring-emerald-500/20">
+                                    <Banknote className="text-emerald-400" size={48} />
                                 </div>
-                                <div className="space-y-1">
-                                    <p className="font-semibold text-slate-200 text-lg">
-                                        {file ? file.name : "Drop offer letter here"}
-                                    </p>
-                                    <p className="text-slate-500 text-sm">
-                                        {file ? "Ready to reveal truth" : "Supports PDF, JPG, PNG"}
-                                    </p>
+
+                                <h1 className="text-4xl font-display font-bold text-white mb-2 tracking-tight">Salary Reality Check</h1>
+                                <p className="text-slate-400 text-lg mb-8 max-w-md mx-auto">
+                                    Decode your offer letter. Find out your <span className="text-emerald-400 font-semibold">Real In-Hand</span> vs. Cost-to-Company (CTC).
+                                </p>
+
+                                <div className="w-full max-w-md border-2 border-dashed border-slate-700 rounded-2xl p-10 hover:border-emerald-500/50 hover:bg-slate-800/50 transition-all cursor-pointer group-hover:shadow-[inset_0_0_20px_rgba(16,185,129,0.05)] relative">
+                                    <input
+                                        type="file"
+                                        id="salary-upload"
+                                        accept=".pdf,image/*"
+                                        onChange={handleFileChange}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                    />
+                                    <div className="flex flex-col items-center gap-4 relative z-10">
+                                        <div className={`p-4 rounded-full transition-all duration-300 ${file ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400 group-hover:text-emerald-400 group-hover:scale-110'}`}>
+                                            {file ? <CheckCircle2 size={32} /> : <UploadCloud size={32} />}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="font-semibold text-slate-200 text-lg">
+                                                {file ? file.name : "Drop offer letter here"}
+                                            </p>
+                                            <p className="text-slate-500 text-sm">
+                                                {file ? "Ready to reveal truth" : "Supports PDF, JPG, PNG"}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                            </label>
-                        </div>
 
-                        <div className="mt-6 flex justify-end">
-                            <button
-                                onClick={handleAnalyze}
-                                disabled={!file || loading}
-                                className="btn-primary w-full md:w-auto text-sm bg-emerald-600 hover:bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.4)]"
-                            >
-                                {loading ? "Decrypting Salary..." : "Reveal True Salary"}
-                            </button>
+                                <motion.div
+                                    className="mt-8"
+                                    animate={{ opacity: file ? 1 : 0.5, y: file ? 0 : 10 }}
+                                >
+                                    <button
+                                        onClick={handleAnalyze}
+                                        disabled={!file || loading}
+                                        className="btn-primary w-full md:w-auto px-8 py-3 text-lg bg-emerald-600 hover:bg-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.3)] disabled:shadow-none"
+                                    >
+                                        {loading ? "Decrypting Salary..." : "Reveal True Salary"}
+                                    </button>
+                                </motion.div>
+                                {error && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-lg">{error}</div>}
+                            </div>
                         </div>
-                        {error && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-lg">{error}</div>}
-                    </div>
-                </div>
-
-                {/* Score/Preview Card */}
-                <div className="glass-card p-6 flex flex-col justify-between relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-teal-500/5"></div>
-                    <div>
-                        <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">Detailed Breakdown</h3>
-                        <div className="h-64 flex items-center justify-center">
-                            {data ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={getChartData()}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={50}
-                                            outerRadius={80}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {getChartData().map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} stroke="#0B0F19" strokeWidth={2} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            formatter={(value: any) => formatINR(value)}
-                                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc', borderRadius: '12px' }}
-                                            itemStyle={{ color: '#f8fafc' }}
-                                        />
-                                        <Legend
-                                            verticalAlign="bottom"
-                                            iconType="circle"
-                                            iconSize={8}
-                                            wrapperStyle={{ fontSize: '10px', color: '#94a3b8' }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="text-center text-slate-600 font-mono text-xs p-8 border border-dashed border-slate-700 rounded-xl bg-slate-900/20">
-                                    NO DATA ANALYZED
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="dashboard"
+                        initial={{ opacity: 0, scale: 0.99 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex flex-col gap-6 h-[calc(100vh-100px)] overflow-hidden"
+                    >
+                        {/* --- ROW 1: METRICS (Fixed Height) --- */}
+                        <div className="shrink-0 grid grid-cols-12 gap-6 h-[140px]">
+                            {/* Card 1: In-Hand */}
+                            <div className="col-span-4 glass-card p-5 bg-emerald-500/5 border-emerald-500/20 flex flex-col justify-center relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none group-hover:bg-emerald-500/20 transition-all"></div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-slate-400 text-sm font-medium uppercase tracking-wider">Net In-Hand</span>
+                                    <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded">LIQUID</span>
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
-
-            {data && inHandMonthly !== null && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="grid grid-cols-1 md:grid-cols-3 gap-6"
-                >
-                    {/* Key Details Grid */}
-                    <div className="md:col-span-2 glass-card p-6">
-                        <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
-                            <FileText className="text-emerald-400" size={20} />
-                            Monthly Reality
-                        </h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 col-span-2">
-                                <div className="text-emerald-400 text-xs uppercase tracking-wide mb-1">Real In-Hand Salary</div>
-                                <div className="font-display font-bold text-emerald-300 text-3xl drop-shadow-lg">{formatINR(inHandMonthly)}</div>
+                                <div className="text-4xl font-display font-bold text-white tracking-tight">{formatINR(inHandMonthly)}</div>
                             </div>
-                            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                                <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">Total Gross</div>
-                                <div className="font-semibold text-white text-lg">{formatINR(data.total_gross_monthly)}</div>
-                            </div>
-                            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                                <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">PF Deduction</div>
-                                <div className="font-semibold text-red-300 text-lg">-{formatINR(data.pf_employee_monthly || 0)}</div>
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* Red Flags */}
-                    <div className={`glass-card p-6 ${data.red_flags?.length > 0 ? 'border-red-500/30 bg-red-900/10' : 'border-emerald-500/30'}`}>
-                        <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
-                            <AlertTriangle className={data.red_flags?.length > 0 ? "text-red-400" : "text-emerald-400"} size={20} />
-                            {data.red_flags?.length > 0 ? "Issues Found" : "Clean Offer"}
-                        </h3>
-
-                        {data.red_flags?.length > 0 ? (
-                            <ul className="space-y-3">
-                                {data.red_flags.map((flag, i) => (
-                                    <li key={i} className="flex gap-2 text-sm text-red-200 bg-red-500/10 p-3 rounded-lg border border-red-500/10">
-                                        <span className="text-red-500">•</span>
-                                        {flag}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <div className="text-center py-8">
-                                <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <CheckCircle2 size={32} className="text-emerald-400" />
+                            {/* Card 2: Deductions */}
+                            <div className="col-span-4 glass-card p-5 flex flex-col justify-center relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-red-500/10 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none group-hover:bg-red-500/20 transition-all"></div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-slate-400 text-sm font-medium uppercase tracking-wider">Total Deductions</span>
+                                    <span className="text-xs font-bold text-red-500 bg-red-900/10 px-2 py-0.5 rounded">LOSS</span>
                                 </div>
-                                <p className="text-emerald-200 font-medium">Valid structure.</p>
+                                <div className="text-4xl font-display font-bold text-slate-200 tracking-tight">{formatINR(deductionsMonthly || 0)}</div>
                             </div>
-                        )}
-                    </div>
-                </motion.div>
-            )}
 
-            {data && <ChatAdvisor context={data} />}
+                            {/* Card 3: Annual CTC */}
+                            <div className="col-span-4 glass-card p-5 flex flex-col justify-center relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none group-hover:bg-blue-500/20 transition-all"></div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-slate-400 text-sm font-medium uppercase tracking-wider">Annual CTC</span>
+                                    <span className="text-xs font-bold text-blue-500 bg-blue-900/10 px-2 py-0.5 rounded">GROSS</span>
+                                </div>
+                                <div className="text-4xl font-display font-bold text-slate-200 tracking-tight">{formatINR(data?.ctc_annual || 0)}</div>
+                            </div>
+                        </div>
+
+                        {/* --- ROW 2: MAIN CONTENT (Fills remaining space) --- */}
+                        <div className="flex-1 min-h-0 grid grid-cols-12 gap-6 pb-2">
+
+                            {/* COLUMN 1: Salary Structure (Ledger) */}
+                            <div className="col-span-12 lg:col-span-3 glass-card p-0 flex flex-col h-full overflow-hidden">
+                                <div className="p-4 border-b border-white/5 shrink-0">
+                                    <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                                        <PieIcon size={14} className="text-emerald-400" /> Salary Structure
+                                    </h3>
+                                </div>
+                                <div className="h-[40%] min-h-[160px] shrink-0 flex items-center justify-center relative p-4 border-b border-white/5">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={getChartData()}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={50}
+                                                outerRadius={70}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                                stroke="none"
+                                            >
+                                                {getChartData().map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip formatter={(value: any) => formatINR(value)} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="text-center">
+                                            <div className="text-xl font-bold text-emerald-400">
+                                                {data?.ctc_annual || (data?.total_gross_monthly * 12)
+                                                    ? (inHandMonthly / (data.ctc_annual || data.total_gross_monthly * 12) * 100).toFixed(0)
+                                                    : 0}%
+                                            </div>
+                                            <div className="text-[9px] text-slate-500 uppercase font-bold">In-Hand</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+                                    <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                            <span className="text-slate-300">Basic Pay</span>
+                                        </div>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.basic_salary_monthly)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                            <span className="text-slate-300">HRA</span>
+                                        </div>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.hra_monthly)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                                            <span className="text-slate-300">Allowances</span>
+                                        </div>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.special_allowance_monthly)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-red-400"></div>
+                                            <span className="text-slate-300">PF (Employee)</span>
+                                        </div>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.pf_employee_monthly)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                            <span className="text-slate-300">Prof. Tax</span>
+                                        </div>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.professional_tax_monthly)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* COLUMN 2: Risks & Negotiation (5 cols) */}
+                            <div className="col-span-12 lg:col-span-5 flex flex-col gap-6 h-full min-h-0">
+                                {/* Risk Section (Flex-1) */}
+                                <div className="flex-1 min-h-0 glass-card p-0 flex flex-col overflow-hidden border-white/10">
+                                    <div className="p-4 border-b border-white/5 bg-red-500/5 shrink-0">
+                                        <h3 className="font-bold text-red-400 text-sm flex items-center gap-2">
+                                            <ShieldAlert size={16} /> Critical Risks ({data?.red_flags?.length || 0})
+                                        </h3>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+                                        {data?.red_flags?.length > 0 ? (
+                                            data.red_flags.map((flagStr, i) => {
+                                                const { title, severity } = getRiskCategory(flagStr);
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        onClick={() => setExpandedRisk(expandedRisk === i ? null : i)}
+                                                        className={`group border rounded-xl p-4 transition-all cursor-pointer ${expandedRisk === i
+                                                            ? 'bg-red-500/10 border-red-500/30'
+                                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                            }`}
+                                                    >
+                                                        <div className="flex justify-between items-start">
+                                                            <div className="flex gap-4">
+                                                                <div className={`mt-0.5 ${severity === 'high' ? 'text-red-500' : 'text-amber-500'}`}>
+                                                                    <AlertTriangle size={18} />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <h4 className="font-bold text-slate-200 text-sm">{title}</h4>
+                                                                        {severity === 'high' && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">High</span>}
+                                                                    </div>
+
+                                                                    <div className={`text-xs text-slate-400 leading-relaxed transition-all ${expandedRisk === i ? 'block' : 'line-clamp-2'
+                                                                        }`}>
+                                                                        {flagStr}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <ChevronDown size={16} className={`text-slate-600 transition-transform mt-1 ${expandedRisk === i ? 'rotate-180' : ''}`} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            <div className="flex items-center gap-2 text-emerald-500 text-sm">
+                                                <CheckCircle2 size={16} /> No critical risks detected.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Negotiation Section (Flex-1) */}
+                                <div className="flex-1 min-h-0 glass-card p-0 flex flex-col overflow-hidden border-white/10">
+                                    <div className="p-4 border-b border-white/5 bg-purple-500/5 shrink-0">
+                                        <h3 className="font-bold text-purple-400 text-sm flex items-center gap-2">
+                                            <Zap size={16} /> Leverage Points ({data?.negotiation_tips?.length || 0})
+                                        </h3>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+                                        {data?.negotiation_tips?.length > 0 ? (
+                                            data.negotiation_tips.map((tipStr, i) => {
+                                                const { title } = getNegotiationCategory(tipStr);
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        onClick={() => setExpandedNeg(expandedNeg === i ? null : i)}
+                                                        className={`group border rounded-xl p-4 transition-all cursor-pointer ${expandedNeg === i
+                                                            ? 'bg-purple-500/10 border-purple-500/30'
+                                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                            }`}
+                                                    >
+                                                        <div className="flex justify-between items-start">
+                                                            <div className="flex gap-4">
+                                                                <div className="mt-0.5 text-purple-400">
+                                                                    <Calculator size={18} />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <h4 className="font-bold text-slate-200 text-sm mb-1">{title}</h4>
+                                                                    <div className={`text-xs text-slate-400 leading-relaxed transition-all ${expandedNeg === i ? 'block' : 'line-clamp-2'
+                                                                        }`}>
+                                                                        {tipStr}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <ChevronDown size={16} className={`text-slate-600 transition-transform mt-1 ${expandedNeg === i ? 'rotate-180' : ''}`} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            <p className="text-slate-500 text-xs">AI is generating leverage...</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* COLUMN 3: Auditor AI (Fills height) */}
+                            <div className="col-span-12 lg:col-span-4 glass-card p-0 flex flex-col h-full overflow-hidden border-2 border-slate-800 focus-within:border-emerald-500/30 transition-colors">
+                                <div className="p-3 border-b border-white/5 bg-slate-800/50 flex items-center justify-between shrink-0">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        <h3 className="font-bold text-slate-200 text-sm">Auditor AI</h3>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                    </div>
+                                </div>
+                                <div className="flex-1 bg-slate-950/20 relative min-h-0">
+                                    <ChatAdvisor context={data} embedded={true} />
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
