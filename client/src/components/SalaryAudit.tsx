@@ -18,7 +18,7 @@ import {
     ChevronDown
 } from 'lucide-react';
 
-// Manual Categorization Logic
+// Manual Categorization Logic for risk
 const getRiskCategory = (text: string) => {
     const lower = text.toLowerCase();
     if (lower.includes('tax') || lower.includes('tds')) return { title: 'Tax Liability', severity: 'high' as const };
@@ -28,7 +28,7 @@ const getRiskCategory = (text: string) => {
     if (lower.includes('gratutity') || lower.includes('insurance')) return { title: 'Benefits Gap', severity: 'medium' as const };
     return { title: 'General Anomaly', severity: 'low' as const };
 };
-
+//Manual Categorization Logic for negotiation tips
 const getNegotiationCategory = (text: string) => {
     const lower = text.toLowerCase();
     if (lower.includes('bonus') || lower.includes('joining') || lower.includes('sign')) return { title: 'Joining Bonus' };
