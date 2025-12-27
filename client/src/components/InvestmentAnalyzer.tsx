@@ -1,9 +1,42 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { calculateXIRR, formatINR } from '../utils/financialMath';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import ChatAdvisor from './ChatAdvisor';
-import { PiggyBank, FileText, AlertTriangle, TrendingUp, UploadCloud, CheckCircle2 } from 'lucide-react';
+import {
+    PiggyBank,
+    FileText,
+    AlertTriangle,
+    TrendingUp,
+    UploadCloud,
+    CheckCircle2,
+    PieChart as PieIcon,
+    ShieldAlert,
+    Zap,
+    ChevronDown,
+    LineChart
+} from 'lucide-react';
+
+// Manual Categorization for Investment Risks
+const getRiskCategory = (text: string) => {
+    const lower = text.toLowerCase();
+    if (lower.includes('lock-in') || lower.includes('surrender') || lower.includes('penalty')) return { title: 'Liquidity Risk', severity: 'high' as const };
+    if (lower.includes('inflation') || lower.includes('real return')) return { title: 'Inflation Risk', severity: 'medium' as const };
+    if (lower.includes('market') || lower.includes('equity') || lower.includes('volatility')) return { title: 'Market Volatility', severity: 'medium' as const };
+    if (lower.includes('mortality') || lower.includes('allocation')) return { title: 'High Charges', severity: 'high' as const };
+    return { title: 'Policy Condition', severity: 'low' as const };
+};
+
+// Categorization for Investment Opportunities/Tips
+const getOpportunityCategory = (text: string) => {
+    const lower = text.toLowerCase();
+    if (lower.includes('tax') || lower.includes('80c') || lower.includes('10(10d)')) return { title: 'Tax Efficiency' };
+    if (lower.includes('switch') || lower.includes('fund')) return { title: 'Fund Switching' };
+    if (lower.includes('paid-up') || lower.includes('continue')) return { title: 'Policy Optimization' };
+    if (lower.includes('term') || lower.includes('cover')) return { title: 'Insurance Adequacy' };
+    return { title: 'Growth Strategy' };
+};
 
 interface ExtractionData {
     policy_name: string;
@@ -13,6 +46,7 @@ interface ExtractionData {
     maturity_years: number;
     maturity_benefit_illustration: number;
     red_flags: string[];
+    opportunities?: string[]; // Added for UI consistency
 }
 
 const InvestmentAnalyzer: React.FC = () => {
@@ -20,7 +54,14 @@ const InvestmentAnalyzer: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<ExtractionData | null>(null);
     const [xirr, setXirr] = useState<number | null>(null);
+    const [netProfit, setNetProfit] = useState<number | null>(null);
+    const [totalInvested, setTotalInvested] = useState<number | null>(null);
+    const [view, setView] = useState<'upload' | 'dashboard'>('upload');
     const [error, setError] = useState<string | null>(null);
+
+    // Accordion State
+    const [expandedRisk, setExpandedRisk] = useState<number | null>(null);
+    const [expandedOpp, setExpandedOpp] = useState<number | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -41,43 +82,52 @@ const InvestmentAnalyzer: React.FC = () => {
 
         try {
             const response = await axios.post('http://localhost:8000/api/analyze/investment', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+                headers: { 'Content-Type': 'multipart/form-data' },
             });
 
-            const extracted = response.data.data;
+            const extracted: ExtractionData = response.data.data;
+
+            // Mock opportunities if missing
+            if (!extracted.opportunities) {
+                extracted.opportunities = [
+                    "Consider 'Paid-Up' option if returns are below 6% (Infinity inflation).",
+                    "Tax Benefit under 80C is applicable for premiums paid.",
+                    "Check if 'Maturity Proceeds' are tax-free under section 10(10D)."
+                ];
+            }
+
             setData(extracted);
 
-            // Calculate XIRR locally
+            // Calculate Metrics
             if (extracted && extracted.premium_amount && extracted.maturity_benefit_illustration) {
+                const totalInv = extracted.premium_amount * (extracted.policy_term_years || 10);
+                const profit = extracted.maturity_benefit_illustration - totalInv;
+
+                setTotalInvested(totalInv);
+                setNetProfit(profit);
+
+                // Calculate XIRR
                 const flow = [];
                 const annualPremium = extracted.premium_amount;
                 const yearsToPay = extracted.policy_term_years || 10;
-
-                // Assume start date is today
                 const startDate = new Date();
 
-                // Outflows (Premiums)
+                // Outflows
                 for (let i = 0; i < yearsToPay; i++) {
                     const date = new Date(startDate);
                     date.setFullYear(startDate.getFullYear() + i);
-                    flow.push({
-                        amount: -Math.abs(annualPremium),
-                        date: date
-                    });
+                    flow.push({ amount: -Math.abs(annualPremium), date: date });
                 }
 
-                // Inflow (Maturity)
+                // Inflow
                 const maturityDate = new Date(startDate);
                 maturityDate.setFullYear(startDate.getFullYear() + (extracted.maturity_years || 15));
-                flow.push({
-                    amount: extracted.maturity_benefit_illustration,
-                    date: maturityDate
-                });
+                flow.push({ amount: extracted.maturity_benefit_illustration, date: maturityDate });
 
                 const resultXirr = calculateXIRR(flow);
                 setXirr(resultXirr);
+
+                setView('dashboard');
             }
 
         } catch (err) {
@@ -88,167 +138,305 @@ const InvestmentAnalyzer: React.FC = () => {
         }
     };
 
+    const getChartData = () => {
+        if (!totalInvested || !netProfit) return [];
+        return [
+            { name: 'Invested', value: totalInvested, color: '#6366f1', desc: 'Principal' }, // Indigo
+            { name: 'Profit', value: netProfit, color: '#10b981', desc: 'Growth' }, // Emerald
+        ].filter(item => item.value > 0);
+    };
+
     return (
         <div className="space-y-6">
-            {/* Hero / Upload Section */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-            >
-                {/* Upload Card - Spans 2 cols */}
-                <div className="lg:col-span-2 glass-card p-8 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none"></div>
+            <AnimatePresence mode="wait">
+                {view === 'upload' ? (
+                    <motion.div
+                        key="upload"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="w-full max-w-2xl mx-auto py-12"
+                    >
+                        {/* Centered Upload Hero */}
+                        <div className="glass-card p-12 relative overflow-hidden group text-center border border-indigo-500/20 shadow-[0_0_50px_rgba(99,102,241,0.1)]">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none"></div>
 
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="p-3 bg-indigo-500/20 rounded-xl">
-                                <PiggyBank className="text-indigo-400" size={32} />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-display font-bold text-white">Investment Audit</h1>
-                                <p className="text-slate-400 text-sm">Upload policy illustration to decode real returns</p>
-                            </div>
-                        </div>
-
-                        <div className="border-2 border-dashed border-slate-700/50 rounded-2xl p-10 hover:border-indigo-500/50 hover:bg-slate-800/30 transition-all text-center group-hover:shadow-[inset_0_0_20px_rgba(99,102,241,0.05)]">
-                            <input
-                                type="file"
-                                id="file-upload"
-                                accept=".pdf,image/*"
-                                onChange={handleFileChange}
-                                className="hidden"
-                            />
-                            <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-4">
-                                <div className={`p-4 rounded-full transition-all duration-300 ${file ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400 group-hover:text-indigo-400 group-hover:scale-110'}`}>
-                                    {file ? <CheckCircle2 size={32} /> : <UploadCloud size={32} />}
+                            <div className="relative z-10 flex flex-col items-center">
+                                <div className="p-4 bg-indigo-500/10 rounded-2xl mb-6 shadow-inner ring-1 ring-indigo-500/20">
+                                    <PiggyBank className="text-indigo-400" size={48} />
                                 </div>
-                                <div className="space-y-1">
-                                    <p className="font-semibold text-slate-200 text-lg">
-                                        {file ? file.name : "Drop policy file here"}
-                                    </p>
-                                    <p className="text-slate-500 text-sm">
-                                        {file ? "Ready to analyze" : "Supports PDF, JPG, PNG"}
-                                    </p>
+
+                                <h1 className="text-4xl font-display font-bold text-white mb-2 tracking-tight">Investment Audit</h1>
+                                <p className="text-slate-400 text-lg mb-8 max-w-md mx-auto">
+                                    Decode your policy. Reveal the <span className="text-indigo-400 font-semibold">Real XIRR</span> vs the Agent's Promise.
+                                </p>
+
+                                <div className="w-full max-w-md border-2 border-dashed border-slate-700 rounded-2xl p-10 hover:border-indigo-500/50 hover:bg-slate-800/50 transition-all cursor-pointer group-hover:shadow-[inset_0_0_20px_rgba(99,102,241,0.05)] relative">
+                                    <input
+                                        type="file"
+                                        id="invest-upload"
+                                        accept=".pdf,image/*"
+                                        onChange={handleFileChange}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                    />
+                                    <div className="flex flex-col items-center gap-4 relative z-10">
+                                        <div className={`p-4 rounded-full transition-all duration-300 ${file ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-slate-400 group-hover:text-indigo-400 group-hover:scale-110'}`}>
+                                            {file ? <CheckCircle2 size={32} /> : <UploadCloud size={32} />}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="font-semibold text-slate-200 text-lg">
+                                                {file ? file.name : "Drop policy file here"}
+                                            </p>
+                                            <p className="text-slate-500 text-sm">
+                                                {file ? "Ready to analyze" : "Supports PDF, JPG, PNG"}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                            </label>
-                        </div>
 
-                        <div className="mt-6 flex justify-end">
-                            <button
-                                onClick={handleAnalyze}
-                                disabled={!file || loading}
-                                className="btn-primary w-full md:w-auto text-sm"
-                            >
-                                {loading ? "Decoding..." : "Run Analysis"}
-                            </button>
+                                <motion.div
+                                    className="mt-8"
+                                    animate={{ opacity: file ? 1 : 0.5, y: file ? 0 : 10 }}
+                                >
+                                    <button
+                                        onClick={handleAnalyze}
+                                        disabled={!file || loading}
+                                        className="btn-primary w-full md:w-auto px-8 py-3 text-lg bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.3)] disabled:shadow-none"
+                                    >
+                                        {loading ? "Decoding Returns..." : "Analyze Investment"}
+                                    </button>
+                                </motion.div>
+                                {error && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-lg">{error}</div>}
+                            </div>
                         </div>
-                        {error && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-lg">{error}</div>}
-                    </div>
-                </div>
-
-                {/* XIRR Score Card (Preview/Result) */}
-                <div className="glass-card p-6 flex flex-col justify-between relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5"></div>
-                    <div>
-                        <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">Real Return (XIRR)</h3>
-                        {xirr !== null ? (
-                            <div className="mt-2">
-                                <div className={`text-6xl font-display font-bold tracking-tighter ${xirr < 0.05 ? 'text-red-400 drop-shadow-[0_0_15px_rgba(248,113,113,0.3)]' : (xirr < 0.07 ? 'text-amber-400' : 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]')}`}>
-                                    {(xirr * 100).toFixed(2)}%
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="dashboard"
+                        initial={{ opacity: 0, scale: 0.99 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex flex-col gap-6 h-[calc(100vh-100px)] overflow-hidden"
+                    >
+                        {/* --- ROW 1: METRICS --- */}
+                        <div className="shrink-0 grid grid-cols-12 gap-6 h-[140px]">
+                            {/* Card 1: XIRR */}
+                            <div className="col-span-4 glass-card p-5 bg-indigo-500/5 border-indigo-500/20 flex flex-col justify-center relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/10 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none group-hover:bg-indigo-500/20 transition-all"></div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-slate-400 text-sm font-medium uppercase tracking-wider">Real Return (XIRR)</span>
+                                    <span className="text-xs font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded">ANNUALIZED</span>
                                 </div>
-                                <div className={`mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border ${xirr < 0.05 ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
-                                    {xirr < 0.05 ? <TrendingUp className="rotate-180" size={14} /> : <TrendingUp size={14} />}
-                                    <span>{xirr < 0.05 ? "INFLATION LOSER" : "WEALTH BUILDER"}</span>
+                                <div className="flex items-baseline gap-2">
+                                    <div className={`text-4xl font-display font-bold tracking-tight ${xirr! < 0.06 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                        {(xirr! * 100).toFixed(2)}%
+                                    </div>
+                                    <span className="text-xs text-slate-500 font-medium">
+                                        {xirr! < 0.06 ? 'Below Inflation (6%)' : 'Beats Inflation'}
+                                    </span>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="h-full flex items-center justify-center text-slate-600 font-mono text-sm border border-dashed border-slate-700 rounded-xl mt-4 bg-slate-900/20">
-                                AWAITING DATA
-                            </div>
-                        )}
-                    </div>
 
-                    <div className="mt-8">
-                        <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <motion.div
-                                className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-emerald-500"
-                                initial={{ width: "0%" }}
-                                animate={{ width: xirr ? `${Math.min(Math.max(xirr * 1000, 10), 100)}%` : "0%" }}
-                            />
-                        </div>
-                        <div className="flex justify-between text-[10px] text-slate-500 mt-2 font-mono">
-                            <span>0% (Loss)</span>
-                            <span>6% (Inflation)</span>
-                            <span>12% (Nifty)</span>
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* Results Grid - Bento Style */}
-            {data && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="grid grid-cols-1 md:grid-cols-3 gap-6"
-                >
-                    {/* Key Details - Span 2 */}
-                    <div className="md:col-span-2 glass-card p-6">
-                        <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
-                            <FileText className="text-indigo-400" size={20} />
-                            Extracted Parameters
-                        </h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                                <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">Policy Name</div>
-                                <div className="font-semibold text-white text-lg truncate" title={data.policy_name}>{data.policy_name}</div>
-                            </div>
-                            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                                <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">Annual Premium</div>
-                                <div className="font-semibold text-white text-lg">{formatINR(data.premium_amount)}</div>
-                            </div>
-                            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                                <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">Duration</div>
-                                <div className="font-semibold text-white text-lg">{data.policy_term_years} Years</div>
-                            </div>
-                            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                                <div className="text-slate-500 text-xs uppercase tracking-wide mb-1">Expected Maturity</div>
-                                <div className="font-semibold text-emerald-400 text-lg">{formatINR(data.maturity_benefit_illustration)}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Red Flags - Span 1 */}
-                    <div className={`glass-card p-6 ${data.red_flags?.length > 0 ? 'border-red-500/30 bg-red-900/10' : 'border-emerald-500/30'}`}>
-                        <h3 className="flex items-center gap-2 text-lg font-bold text-white mb-6">
-                            <AlertTriangle className={data.red_flags?.length > 0 ? "text-red-400" : "text-emerald-400"} size={20} />
-                            {data.red_flags?.length > 0 ? "Risk Assessment" : "Safe Investment"}
-                        </h3>
-
-                        {data.red_flags?.length > 0 ? (
-                            <ul className="space-y-3">
-                                {data.red_flags.map((flag, i) => (
-                                    <li key={i} className="flex gap-2 text-sm text-red-200 bg-red-500/10 p-3 rounded-lg border border-red-500/10">
-                                        <span className="text-red-500">•</span>
-                                        {flag}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <div className="text-center py-8">
-                                <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <CheckCircle2 size={32} className="text-emerald-400" />
+                            {/* Card 2: Net Profit */}
+                            <div className="col-span-4 glass-card p-5 flex flex-col justify-center relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none group-hover:bg-emerald-500/20 transition-all"></div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-slate-400 text-sm font-medium uppercase tracking-wider">Net Profit</span>
+                                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">GAIN</span>
                                 </div>
-                                <p className="text-emerald-200 font-medium">No hidden clauses detected.</p>
+                                <div className="text-4xl font-display font-bold text-slate-200 tracking-tight">{formatINR(netProfit || 0)}</div>
                             </div>
-                        )}
-                    </div>
-                </motion.div>
-            )}
 
-            {data && <ChatAdvisor context={data} />}
+                            {/* Card 3: Maturity Value */}
+                            <div className="col-span-4 glass-card p-5 flex flex-col justify-center relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none group-hover:bg-blue-500/20 transition-all"></div>
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-slate-400 text-sm font-medium uppercase tracking-wider">Maturity Value</span>
+                                    <span className="text-xs font-bold text-blue-500 bg-blue-900/10 px-2 py-0.5 rounded">OUTPUT</span>
+                                </div>
+                                <div className="text-4xl font-display font-bold text-slate-200 tracking-tight">{formatINR(data?.maturity_benefit_illustration || 0)}</div>
+                            </div>
+                        </div>
+
+                        {/* --- ROW 2: MAIN CONTENT --- */}
+                        <div className="flex-1 min-h-0 grid grid-cols-12 gap-6 pb-2">
+
+                            {/* COLUMN 1: Growth Chart */}
+                            <div className="col-span-12 lg:col-span-3 glass-card p-0 flex flex-col h-full overflow-hidden">
+                                <div className="p-4 border-b border-white/5 shrink-0">
+                                    <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                                        <PieIcon size={14} className="text-indigo-400" /> Wealth Ratio
+                                    </h3>
+                                </div>
+                                <div className="h-[40%] min-h-[160px] shrink-0 flex items-center justify-center relative p-4 border-b border-white/5">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={getChartData()}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={50}
+                                                outerRadius={70}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                                stroke="none"
+                                            >
+                                                {getChartData().map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip formatter={(value: any) => formatINR(value)} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="text-center">
+                                            <div className="text-xl font-bold text-indigo-400">
+                                                {(netProfit! / totalInvested! * 100).toFixed(0)}%
+                                            </div>
+                                            <div className="text-[9px] text-slate-500 uppercase font-bold">Absolute Return</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+                                    <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                            <span className="text-slate-300">Invested</span>
+                                        </div>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(totalInvested)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                            <span className="text-slate-300">Profit</span>
+                                        </div>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(netProfit)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                        <span className="text-slate-400">Policy Term</span>
+                                        <span className="font-mono text-slate-200">{data?.policy_term_years} Years</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                        <span className="text-slate-400">Maturity after</span>
+                                        <span className="font-mono text-slate-200">{data?.maturity_years} Years</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* COLUMN 2: Risks & Opportunities */}
+                            <div className="col-span-12 lg:col-span-5 flex flex-col gap-6 h-full min-h-0">
+                                {/* Risk Section */}
+                                <div className="flex-1 min-h-0 glass-card p-0 flex flex-col overflow-hidden border-white/10">
+                                    <div className="p-4 border-b border-white/5 bg-red-500/5 shrink-0">
+                                        <h3 className="font-bold text-red-400 text-sm flex items-center gap-2">
+                                            <ShieldAlert size={16} /> Risk Factors ({data?.red_flags?.length || 0})
+                                        </h3>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+                                        {data?.red_flags?.length > 0 ? (
+                                            data.red_flags.map((flagStr, i) => {
+                                                const { title, severity } = getRiskCategory(flagStr);
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        onClick={() => setExpandedRisk(expandedRisk === i ? null : i)}
+                                                        className={`group border rounded-xl p-4 transition-all cursor-pointer ${expandedRisk === i
+                                                            ? 'bg-red-500/10 border-red-500/30'
+                                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                            }`}
+                                                    >
+                                                        <div className="flex justify-between items-start">
+                                                            <div className="flex gap-4">
+                                                                <div className={`mt-0.5 ${severity === 'high' ? 'text-red-500' : 'text-amber-500'}`}>
+                                                                    <AlertTriangle size={18} />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <h4 className="font-bold text-slate-200 text-sm">{title}</h4>
+                                                                        {severity === 'high' && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full uppercase font-bold tracking-wider">High</span>}
+                                                                    </div>
+                                                                    <div className={`text-xs text-slate-400 leading-relaxed transition-all ${expandedRisk === i ? 'block' : 'line-clamp-2'}`}>
+                                                                        {flagStr}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <ChevronDown size={16} className={`text-slate-600 transition-transform mt-1 ${expandedRisk === i ? 'rotate-180' : ''}`} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            <div className="flex items-center gap-2 text-emerald-500 text-sm">
+                                                <CheckCircle2 size={16} /> No critical risks found.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Opportunity Section */}
+                                <div className="flex-1 min-h-0 glass-card p-0 flex flex-col overflow-hidden border-white/10">
+                                    <div className="p-4 border-b border-white/5 bg-indigo-500/5 shrink-0">
+                                        <h3 className="font-bold text-indigo-400 text-sm flex items-center gap-2">
+                                            <TrendingUp size={16} /> Wealth Opportunities ({data?.opportunities?.length || 0})
+                                        </h3>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+                                        {data?.opportunities?.length > 0 ? (
+                                            data.opportunities.map((tipStr, i) => {
+                                                const { title } = getOpportunityCategory(tipStr);
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        onClick={() => setExpandedOpp(expandedOpp === i ? null : i)}
+                                                        className={`group border rounded-xl p-4 transition-all cursor-pointer ${expandedOpp === i
+                                                            ? 'bg-indigo-500/10 border-indigo-500/30'
+                                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                            }`}
+                                                    >
+                                                        <div className="flex justify-between items-start">
+                                                            <div className="flex gap-4">
+                                                                <div className="mt-0.5 text-indigo-400">
+                                                                    <Zap size={18} />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <h4 className="font-bold text-slate-200 text-sm mb-1">{title}</h4>
+                                                                    <div className={`text-xs text-slate-400 leading-relaxed transition-all ${expandedOpp === i ? 'block' : 'line-clamp-2'}`}>
+                                                                        {tipStr}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <ChevronDown size={16} className={`text-slate-600 transition-transform mt-1 ${expandedOpp === i ? 'rotate-180' : ''}`} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        ) : (
+                                            <p className="text-slate-500 text-xs">No opportunities identified.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* COLUMN 3: Advisor AI */}
+                            <div className="col-span-12 lg:col-span-4 glass-card p-0 flex flex-col h-full overflow-hidden border-2 border-slate-800 focus-within:border-indigo-500/30 transition-colors">
+                                <div className="p-3 border-b border-white/5 bg-slate-800/50 flex items-center justify-between shrink-0">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+                                        <h3 className="font-bold text-slate-200 text-sm">Wealth Advisor AI</h3>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                    </div>
+                                </div>
+                                <div className="flex-1 bg-slate-950/20 relative min-h-0">
+                                    <ChatAdvisor context={data} embedded={true} />
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
