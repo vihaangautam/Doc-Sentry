@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard,
@@ -23,8 +24,15 @@ interface DashboardLayoutProps {
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const location = useLocation();
+    const navigate = useNavigate();
+    const { signOut } = useAuth();
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+    const handleLogout = async () => {
+        await signOut();
+        navigate('/');
+    };
 
     const menuItems = [
         { path: '/overview', label: 'Overview', icon: LayoutDashboard },
@@ -86,27 +94,38 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     })}
                 </nav>
 
-                {/* Premium Plan Box */}
-                {isSidebarOpen ? (
-                    <div className="p-4 mx-4 mb-6 bg-gradient-to-br from-[#161e31] to-[#0f1522] rounded-2xl border border-[#1e293b] relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-2 opacity-10">
-                            <Crown size={60} />
+                {/* Sidebar Footer */}
+                <div className="p-4 border-t border-[#1e293b]/50">
+                    <button
+                        onClick={handleLogout}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-400 hover:text-red-400 hover:bg-red-400/10 w-full group`}
+                    >
+                        <LogOut size={20} className="group-hover:text-red-400" />
+                        {isSidebarOpen && <span className="font-medium text-sm">Sign Out</span>}
+                    </button>
+
+                    {/* Premium Plan Box */}
+                    {isSidebarOpen ? (
+                        <div className="mt-4 p-4 bg-gradient-to-br from-[#161e31] to-[#0f1522] rounded-2xl border border-[#1e293b] relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-2 opacity-10">
+                                <Crown size={60} />
+                            </div>
+                            <div className="relative z-10">
+                                <h4 className="font-bold text-white text-sm mb-1">Premium Plan</h4>
+                                <p className="text-xs text-slate-400 mb-3">Unlimited audits & advanced exports</p>
+                                <button className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold text-xs rounded-lg transition-colors">
+                                    Upgrade Now
+                                </button>
+                            </div>
                         </div>
-                        <div className="relative z-10">
-                            <h4 className="font-bold text-white text-sm mb-1">Premium Plan</h4>
-                            <p className="text-xs text-slate-400 mb-3">Unlimited audits & advanced exports</p>
-                            <button className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold text-xs rounded-lg transition-colors">
-                                Upgrade Now
-                            </button>
+                    ) : (
+                        <div className="mt-4 p-2 flex justify-center">
+                            <div className="p-3 bg-gradient-to-br from-amber-400 to-orange-400 rounded-xl text-slate-900">
+                                <Crown size={20} />
+                            </div>
                         </div>
-                    </div>
-                ) : (
-                    <div className="p-2 mb-6 flex justify-center">
-                        <div className="p-3 bg-gradient-to-br from-amber-400 to-orange-400 rounded-xl text-slate-900">
-                            <Crown size={20} />
-                        </div>
-                    </div>
-                )}
+                    )}
+                </div>
 
             </motion.aside>
 

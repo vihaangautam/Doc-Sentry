@@ -1,57 +1,46 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LandingPage from './components/LandingPage';
 import InvestmentAnalyzer from './components/InvestmentAnalyzer';
 import LoanAudit from './components/LoanAudit';
 import SalaryAudit from './components/SalaryAudit';
 import DashboardLayout from './components/DashboardLayout';
-
 import Overview from './components/Overview';
-
-const AppContent: React.FC = () => {
-  const [showDashboard, setShowDashboard] = useState(false);
-
-  return (
-    <>
-      <AnimatePresence mode="wait">
-        {!showDashboard ? (
-          <motion.div
-            key="landing"
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-            className="h-screen w-full bg-[#0f172a]"
-          >
-            <LandingPage onStartAudit={() => setShowDashboard(true)} />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="dashboard"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, ease: "circOut" }}
-            className="h-screen w-full"
-          >
-            <DashboardLayout>
-              <Routes>
-                <Route path="/" element={<Overview />} />
-                <Route path="/overview" element={<Overview />} />
-                <Route path="/investment" element={<InvestmentAnalyzer />} />
-                <Route path="/loan" element={<LoanAudit />} />
-                <Route path="/salary" element={<SalaryAudit />} />
-              </Routes>
-            </DashboardLayout>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
-  );
-};
+import Login from './components/Login';
+import AuthGuard from './components/AuthGuard';
 
 const App: React.FC = () => {
   return (
     <Router>
-      <AppContent />
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Login />} />
+
+        {/* Protected Dashboard Routes */}
+        <Route element={<AuthGuard />}>
+          <Route path="/" element={
+            <DashboardLayout>
+              {/* This handles / -> /dashboard redirection logic if needed, but we used children in layout */}
+              {/* We need to restructure DashboardLayout or just wrap routes */}
+            </DashboardLayout>
+          } />
+
+          {/* 
+              Wait, since DashboardLayout wraps children, we should use a Layout Route pattern 
+              OR just wrap each element. 
+              Let's use a Wrapper Component for cleaner code.
+           */}
+          <Route path="/overview" element={<DashboardLayout><Overview /></DashboardLayout>} />
+          <Route path="/salary" element={<DashboardLayout><SalaryAudit /></DashboardLayout>} />
+          <Route path="/loan" element={<DashboardLayout><LoanAudit /></DashboardLayout>} />
+          <Route path="/investment" element={<DashboardLayout><InvestmentAnalyzer /></DashboardLayout>} />
+
+          {/* Redirect /dashboard to /overview if accessed directly */}
+          <Route path="/dashboard" element={<DashboardLayout><Overview /></DashboardLayout>} />
+        </Route>
+
+      </Routes>
     </Router>
   );
 };

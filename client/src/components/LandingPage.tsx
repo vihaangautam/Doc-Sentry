@@ -1,12 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { ScanSearch, FileText, Upload, ShieldCheck, Zap, ArrowRight, CheckCircle2 } from 'lucide-react';
 
-interface LandingPageProps {
-    onStartAudit: () => void;
-}
-
-const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit }) => {
+const LandingPage: React.FC = () => {
+    const navigate = useNavigate();
+    const onStartAudit = () => navigate('/login');
     return (
         <div className="flex flex-col items-center justify-center min-h-screen relative overflow-hidden font-sans">
             {/* Background Effects */}
