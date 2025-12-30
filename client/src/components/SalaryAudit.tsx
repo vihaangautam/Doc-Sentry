@@ -298,7 +298,7 @@ const SalaryAudit: React.FC = () => {
                                         <PieIcon size={14} className="text-emerald-400" /> Salary Structure
                                     </h3>
                                 </div>
-                                <div className="h-[40%] min-h-[160px] shrink-0 flex items-center justify-center relative p-4 border-b border-white/5">
+                                <div className="h-[40%] min-h-[160px] shrink-0 relative p-4 border-b border-white/5">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <Pie
