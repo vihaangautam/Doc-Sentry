@@ -6,7 +6,7 @@ DocSentry is an AI-powered financial intelligence dashboard that audits salary s
 ![Tech](https://img.shields.io/badge/Stack-React%20%7C%20Python%20%7C%20Gemini%20AI-blue)
 
 ## 🚀 Live Demo
-**[Launch DocSentry](https://doc-sentry-jet.vercel.app)** 
+**[Launch DocSentry](https://doc-sentry-three.vercel.app/)** 
 
 > **Note**: This project runs on free-tier infrastructure (Render/Supabase). 
 > - The **Backend** may take up to **50 seconds** to wake up on the first request.
