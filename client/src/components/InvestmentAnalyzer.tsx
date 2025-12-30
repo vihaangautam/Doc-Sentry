@@ -91,6 +91,7 @@ const InvestmentAnalyzer: React.FC = () => {
             });
 
             const extracted: ExtractionData = response.data.data;
+            console.log("Final Investment Data:", extracted);
 
             // Mock opportunities if missing
             if (!extracted.opportunities) {
@@ -103,10 +104,17 @@ const InvestmentAnalyzer: React.FC = () => {
 
             setData(extracted);
 
+            // Calculations - Robust
+            const safeNum = (val: any) => Number(val) || 0;
+            const premium = safeNum(extracted.premium_amount);
+            const maturity = safeNum(extracted.maturity_benefit_illustration);
+            const term = safeNum(extracted.policy_term_years) || 10;
+            const maturityYears = safeNum(extracted.maturity_years) || 15;
+
             // Calculate Metrics
-            if (extracted && extracted.premium_amount && extracted.maturity_benefit_illustration) {
-                const totalInv = extracted.premium_amount * (extracted.policy_term_years || 10);
-                const profit = extracted.maturity_benefit_illustration - totalInv;
+            if (premium && maturity) {
+                const totalInv = premium * term;
+                const profit = maturity - totalInv;
 
                 setTotalInvested(totalInv);
                 setNetProfit(profit);

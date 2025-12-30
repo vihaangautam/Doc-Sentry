@@ -91,6 +91,7 @@ const LoanAudit: React.FC = () => {
             });
 
             const extracted: LoanData = response.data.data;
+            console.log("Final Loan Data:", extracted);
 
             // Mock optimization tips if not present (to match UI structure)
             if (!extracted.optimization_tips) {
@@ -103,22 +104,28 @@ const LoanAudit: React.FC = () => {
 
             setData(extracted);
 
-            // Calculations
-            if (extracted && extracted.loan_amount && extracted.interest_rate_quoted) {
-                const totalFees = (extracted.processing_fees || 0) + (extracted.insurance_bundled || 0) + (extracted.other_charges || 0);
-                const quotedRateDecimal = extracted.interest_rate_quoted / 100;
-                const tenure = extracted.tenure_months || 240;
+            // Calculations - Robust Logic
+            const safeNum = (val: any) => Number(val) || 0;
+
+            const loanAmt = safeNum(extracted.loan_amount);
+            const rate = safeNum(extracted.interest_rate_quoted);
+
+            if (loanAmt && rate) {
+                const totalFees = safeNum(extracted.processing_fees) + safeNum(extracted.insurance_bundled) + safeNum(extracted.other_charges);
+                const quotedRateDecimal = rate / 100;
+                const tenure = safeNum(extracted.tenure_months) || 240;
+                const emi = safeNum(extracted.emi_amount);
 
                 const apr = calculateAPR(
-                    extracted.loan_amount,
+                    loanAmt,
                     totalFees,
                     tenure,
                     quotedRateDecimal
                 );
 
                 // Total Interest Payable = (EMI * Tenure) - Principal
-                const totalRepayment = (extracted.emi_amount || 0) * tenure;
-                const interest = totalRepayment - extracted.loan_amount;
+                const totalRepayment = (emi > 0 ? emi : 0) * tenure;
+                const interest = totalRepayment > loanAmt ? (totalRepayment - loanAmt) : (loanAmt * quotedRateDecimal * (tenure / 12)); // Fallback approximation if EMI missing
 
                 setEffectiveAPR(apr);
                 setTotalInterest(interest);
