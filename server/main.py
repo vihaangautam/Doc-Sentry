@@ -45,7 +45,7 @@ async def analyze_audit(
         # 3. Save to Supabase
         if analysis_result and "data" in analysis_result:
              await save_audit(
-                user_id=user['id'], # Extracted from JWT
+                user_id=user.get('sub'), # Extracted from JWT (sub is the user ID)
                 filename=file.filename,
                 audit_type=audit_type,
                 analysis_data=analysis_result['data']

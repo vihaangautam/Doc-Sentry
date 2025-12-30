@@ -14,7 +14,9 @@ import {
     PieChart as PieIcon,
     ShieldAlert,
     ChevronDown,
-    TrendingUp
+    TrendingUp,
+    Zap,
+    Calculator
 } from 'lucide-react';
 
 // Manual Categorization Logic for risk
@@ -78,7 +80,6 @@ const SalaryAudit: React.FC = () => {
     };
 
     const handleAnalyze = async () => {
-        console.log("handleAnalyze called. File:", file?.name);
         if (!file) return;
         setLoading(true);
         setError(null);
@@ -88,35 +89,44 @@ const SalaryAudit: React.FC = () => {
         formData.append('file', file);
 
         try {
-            console.log("Sending request to /api/analyze/salary...");
-            console.log("Session Token present:", !!session?.access_token);
-
             const response = await axios.post('http://localhost:8000/api/analyze/salary', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     'Authorization': `Bearer ${session?.access_token}`
                 },
             });
-            console.log("Response received:", response.status);
             const extracted: SalaryData = response.data.data;
+            console.log("Final Extracted Data used for Calc:", extracted);
             setData(extracted);
 
-            // Calculate In-Hand
-            let monthlyGross = extracted.total_gross_monthly ||
-                ((extracted.basic_salary_monthly || 0) + (extracted.hra_monthly || 0) + (extracted.special_allowance_monthly || 0));
+            // Robust Calculation: Ensure all inputs are Numbers
+            const safeNum = (val: any) => Number(val) || 0;
 
-            const monthlyDeductions = (extracted.pf_employee_monthly || 0) + (extracted.professional_tax_monthly || 0) + (extracted.other_deductions_monthly || 0);
+            const basic = safeNum(extracted.basic_salary_monthly);
+            const hra = safeNum(extracted.hra_monthly);
+            const special = safeNum(extracted.special_allowance_monthly);
+            const pf = safeNum(extracted.pf_employee_monthly);
+            const proTax = safeNum(extracted.professional_tax_monthly);
+            const deductions = safeNum(extracted.other_deductions_monthly);
+            const grossProvided = safeNum(extracted.total_gross_monthly);
+
+            // If gross is 0 or missing, calculate it from components
+            let monthlyGross = grossProvided > 0 ? grossProvided : (basic + hra + special);
+
+            const monthlyDeductions = pf + proTax + deductions;
 
             const inHand = monthlyGross - monthlyDeductions;
+
+            console.log("Calc Debug:", { monthlyGross, monthlyDeductions, inHand });
+
             setInHandMonthly(inHand);
             setDeductionsMonthly(monthlyDeductions);
             setView('dashboard');
 
         } catch (err) {
-            console.error("Analysis Error:", err);
+            console.error(err);
             setError("Failed to analyze salary document. Check console for details.");
         } finally {
-            console.log("Analysis process finished (finally block).");
             setLoading(false);
         }
     };
