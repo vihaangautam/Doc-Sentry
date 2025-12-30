@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+# 🛡️ DocSentry - Intelligent Financial Document Auditor
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+DocSentry is an AI-powered financial intelligence dashboard that audits salary slips, loan agreements, and investment documents to reveal hidden risks, tax implications, and negotiation opportunities.
 
-Currently, two official plugins are available:
+![Status](https://img.shields.io/badge/Status-Live-emerald)
+![Tech](https://img.shields.io/badge/Stack-React%20%7C%20Python%20%7C%20Gemini%20AI-blue)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Live Demo
+**[Launch DocSentry](https://doc-sentry-jet.vercel.app)** 
 
-## React Compiler
+> **Note**: This project runs on free-tier infrastructure (Render/Supabase). 
+> - The **Backend** may take up to **50 seconds** to wake up on the first request.
+> - The **Database** pauses after inactivity. If login fails, please try again in a minute.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🌟 Key Features
 
-## Expanding the ESLint configuration
+### 1. 💰 Salary Audit
+- **CTC Decoding**: Breaks down "Cost to Company" vs. real "In-Hand" salary.
+- **Hidden Deductions**: Identifies tax leaks and hidden employer deductions.
+- **Inflation Impact**: Calculates real earnings adjusted for inflation.
+- **Negotiation Coach**: AI-generated tips to negotiate a better package.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 2. 🏦 Loan Decoder
+- **True Cost Analysis**: Reveals the *actual* interest paid vs. principal.
+- **Risk Detection**: Scans for "Floating Rate" risks, "Prepayment Penalties", and "Forced Insurance".
+- **Indian Banking Context**: Specially tuned for Indian loan terminologies (MCLR, RLLR).
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 3. 📈 Investment Analyzer
+- **XIRR Calculation**: Computes real returns (XIRR) from uploaded statements.
+- **Policy Audit**: Checks for lock-in periods and hidden charges in insurance policies.
+- **AI Advisor**: Chat with your documents to ask specific questions ("Can I withdraw money now?").
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🛠️ Tech Stack
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS, Framer Motion, Recharts.
+- **Backend**: Python, FastAPI, Google Gemini 1.5 Flash (AI).
+- **Database**: Supabase (PostgreSQL + Auth).
+- **Deployment**: Vercel (Frontend) + Render (Backend Docker).
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🏃‍♂️ Running Locally
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1.  **Clone the repo**
+    ```bash
+    git clone https://github.com/vihaangautam/Doc-Sentry.git
+    cd DocSentry
+    ```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+2.  **Setup Frontend**
+    ```bash
+    cd client
+    npm install
+    npm run dev
+    ```
+
+3.  **Setup Backend**
+    ```bash
+    cd server
+    pip install -r requirements.txt
+    uvicorn main:app --reload
+    ```
+
+4.  **Environment Variables**
+    - Create `.env` files in both `client` and `server` folders using the provided examples.
+
+---
+*Built by [Vihaan Gautam](https://github.com/vihaangautam) as a Resume Project.*
