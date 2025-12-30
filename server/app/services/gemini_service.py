@@ -133,3 +133,17 @@ def extract_salary_details(file_content: bytes, mime_type: str):
         return json.loads(text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Extraction Failed: {str(e)}")
+
+async def analyze_document(audit_type: str, content: bytes, filename: str):
+    mime_type = "application/pdf" if filename.lower().endswith(".pdf") else "image/png"
+    
+    if audit_type == "salary":
+        data = extract_salary_details(content, mime_type)
+    elif audit_type == "loan":
+        data = extract_loan_details(content, mime_type)
+    elif audit_type == "investment":
+        data = extract_investment_details(content, mime_type)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid audit type")
+        
+    return {"status": "success", "data": data}

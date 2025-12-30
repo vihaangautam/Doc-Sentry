@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { calculateAPR, formatINR } from '../utils/financialMath';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import ChatAdvisor from './ChatAdvisor';
+import { useAuth } from '../context/AuthContext';
 import {
     HandCoins,
     FileText,
@@ -60,6 +61,7 @@ const LoanAudit: React.FC = () => {
     const [totalInterest, setTotalInterest] = useState<number | null>(null);
     const [view, setView] = useState<'upload' | 'dashboard'>('upload');
     const [error, setError] = useState<string | null>(null);
+    const { session } = useAuth();
 
     // Accordion State
     const [expandedRisk, setExpandedRisk] = useState<number | null>(null);
@@ -82,7 +84,10 @@ const LoanAudit: React.FC = () => {
 
         try {
             const response = await axios.post('http://localhost:8000/api/analyze/loan', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
             });
 
             const extracted: LoanData = response.data.data;

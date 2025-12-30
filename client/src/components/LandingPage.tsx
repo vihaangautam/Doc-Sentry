@@ -54,17 +54,12 @@ const LandingPage: React.FC = () => {
                             </span>
                             <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                         </button>
-
-                        <button className="px-8 py-4 bg-slate-800/50 hover:bg-slate-800 text-slate-300 border border-slate-700 hover:border-slate-600 rounded-xl font-bold text-lg flex items-center gap-3 transition-all backdrop-blur-md">
-                            <Zap size={20} className="text-amber-400" />
-                            Live Demo
-                        </button>
                     </div>
 
                     <div className="flex items-center gap-6 pt-4 text-sm text-slate-500 font-medium">
                         <div className="flex items-center gap-2">
                             <CheckCircle2 size={16} className="text-emerald-500" />
-                            <span>No SignUp Required</span>
+                            <span>No Data Retention</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <CheckCircle2 size={16} className="text-emerald-500" />

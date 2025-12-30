@@ -1,152 +1,205 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
 import {
     LineChart,
     Line,
-    ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell
+    ResponsiveContainer
 } from 'recharts';
 import {
     FileText,
     AlertTriangle,
-    ArrowUpRight,
     TrendingUp,
-    Activity,
-    PiggyBank,
     HandCoins,
     Banknote,
-    ChevronRight,
-    Zap
+    Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { formatDistanceToNow } from 'date-fns';
 
-const dummyData = [
-    { name: 'Mon', audits: 40, risks: 24 },
-    { name: 'Tue', audits: 30, risks: 13 },
-    { name: 'Wed', audits: 20, risks: 58 },
-    { name: 'Thu', audits: 27, risks: 39 },
-    { name: 'Fri', audits: 18, risks: 48 },
-    { name: 'Sat', audits: 23, risks: 38 },
-    { name: 'Sun', audits: 34, risks: 43 },
-];
+interface AuditRecord {
+    id: string;
+    created_at: string;
+    filename: string;
+    audit_type: 'salary' | 'loan' | 'investment';
+    status: string;
+    analysis_json: any;
+}
 
 const Overview: React.FC = () => {
+    const { user } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [stats, setStats] = useState({
+        totalAudits: 0,
+        riskFlags: 0,
+        avgSavings: 0,
+        potentialValue: 0
+    });
+    const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
+    const [hasData, setHasData] = useState(false);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            if (!user) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('audits')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    setHasData(true);
+                    setRecentAudits(data.slice(0, 5));
+
+                    // Calculate Stats
+                    let risks = 0;
+                    let savings = 0; // Mock calculation logic for now as data structure varies
+                    let value = 0;
+
+                    data.forEach(audit => {
+                        const json = audit.analysis_json || {};
+                        // Defensive checks based on audit type
+                        if (json.red_flags && Array.isArray(json.red_flags)) {
+                            risks += json.red_flags.length;
+                        }
+
+                        // Rough estimations for value (just for demo purposes until backend standardizes)
+                        if (audit.audit_type === 'investment') {
+                            value += (json.maturity_benefit_illustration || 0);
+                        } else if (audit.audit_type === 'salary') {
+                            value += (json.ctc_annual || 0);
+                        }
+                    });
+
+                    setStats({
+                        totalAudits: data.length,
+                        riskFlags: risks,
+                        avgSavings: 0, // Placeholder until we define "Savings" rigorously
+                        potentialValue: value
+                    });
+                } else {
+                    setHasData(false);
+                }
+
+            } catch (err) {
+                console.error("Error fetching audits:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [user]);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="animate-spin text-indigo-500" size={32} />
+            </div>
+        );
+    }
+
+    // Chart Data (Mocking trend for now based on stats)
+    const chartData = [
+        { name: 'Mon', value: stats.totalAudits > 0 ? 1 : 0 },
+        { name: 'Tue', value: stats.totalAudits > 2 ? 3 : 0 },
+        { name: 'Wed', value: stats.totalAudits > 5 ? 2 : 0 },
+        { name: 'Thu', value: stats.totalAudits > 8 ? 5 : 0 },
+        { name: 'Fri', value: stats.totalAudits },
+    ];
+
     return (
         <div className="space-y-8">
             {/* Valid Greeting */}
             <div>
-                <h1 className="text-3xl font-display font-bold text-white">Welcome to DocSentry</h1>
-                <p className="text-slate-400 mt-1">Your premium financial document analysis platform</p>
+                <h1 className="text-3xl font-display font-bold text-white">Welcome back</h1>
+                <p className="text-slate-400 mt-1">Your privacy-first financial dashboard.</p>
             </div>
 
             {/* Top Stats Row */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-                {/* Card 1: Total Audits (Cyan) */}
+                {/* Card 1: Total Audits */}
                 <div className="p-6 rounded-2xl bg-[#0B0F19] border border-cyan-500/30 relative overflow-hidden group hover:border-cyan-400 transition-colors">
                     <div className="relative z-10 flex flex-col justify-between h-full">
                         <div className="flex justify-between items-start mb-4">
                             <div>
                                 <p className="text-slate-400 text-sm font-medium">Total Audits</p>
-                                <h3 className="text-3xl font-bold text-white mt-1">247</h3>
+                                <h3 className="text-3xl font-bold text-white mt-1">{stats.totalAudits}</h3>
                             </div>
                             <div className="p-2 bg-cyan-500/10 rounded-lg text-cyan-400">
                                 <FileText size={20} />
                             </div>
                         </div>
 
-                        <div className="h-16 w-full -ml-2">
+                        <div className="h-16 w-full -ml-2 min-w-0 min-h-[64px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={dummyData}>
-                                    <Line type="monotone" dataKey="audits" stroke="#22d3ee" strokeWidth={2} dot={false} />
+                                <LineChart data={chartData}>
+                                    <Line type="monotone" dataKey="value" stroke="#22d3ee" strokeWidth={2} dot={false} />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
-                        <p className="text-cyan-500 text-xs font-bold mt-2 flex items-center gap-1">
-                            +12.3% <span className="text-slate-500 font-normal">from last month</span>
-                        </p>
                     </div>
                 </div>
 
-                {/* Card 2: Risk Flags (Red) */}
+                {/* Card 2: Risk Flags */}
                 <div className="p-6 rounded-2xl bg-[#0B0F19] border border-red-500/30 relative overflow-hidden group hover:border-red-400 transition-colors">
                     <div className="relative z-10 flex flex-col justify-between h-full">
                         <div className="flex justify-between items-start mb-4">
                             <div>
-                                <p className="text-slate-400 text-sm font-medium">Risk Flags</p>
-                                <h3 className="text-3xl font-bold text-white mt-1">18</h3>
+                                <p className="text-slate-400 text-sm font-medium">Risk Flags Found</p>
+                                <h3 className="text-3xl font-bold text-white mt-1">{stats.riskFlags}</h3>
                             </div>
                             <div className="p-2 bg-red-500/10 rounded-lg text-red-500">
                                 <AlertTriangle size={20} />
                             </div>
                         </div>
-
-                        <div className="h-16 w-full -ml-2">
+                        {/* Reusing same chart for visual consistency/placeholder */}
+                        <div className="h-16 w-full -ml-2 min-w-0 min-h-[64px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={dummyData}>
-                                    <Line type="monotone" dataKey="risks" stroke="#ef4444" strokeWidth={2} dot={false} />
+                                <LineChart data={chartData}>
+                                    <Line type="monotone" dataKey="value" stroke="#ef4444" strokeWidth={2} dot={false} />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
-                        <p className="text-red-500 text-xs font-bold mt-2 flex items-center gap-1">
-                            -8.2% <span className="text-slate-500 font-normal">from last month</span>
-                        </p>
                     </div>
                 </div>
 
-                {/* Card 3: Avg Savings (Green) */}
+                {/* Card 3: Potential Value */}
                 <div className="p-6 rounded-2xl bg-[#0B0F19] border border-emerald-500/30 relative overflow-hidden group hover:border-emerald-400 transition-colors">
                     <div className="relative z-10 flex flex-col justify-between h-full">
                         <div className="flex justify-between items-start mb-4">
                             <div>
-                                <p className="text-slate-400 text-sm font-medium">Avg. Savings</p>
-                                <h3 className="text-3xl font-bold text-white mt-1">$3.2K</h3>
+                                <p className="text-slate-400 text-sm font-medium">Analyzed Value</p>
+                                <h3 className="text-3xl font-bold text-white mt-1">
+                                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumSignificantDigits: 3 }).format(stats.potentialValue)}
+                                </h3>
                             </div>
                             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
-                                <ArrowUpRight size={20} />
+                                <Banknote size={20} />
                             </div>
                         </div>
-
-                        {/* Simple visual bar instead of chart */}
-                        <div className="mt-6">
-                            <div className="flex items-end gap-1 h-10">
-                                <div className="w-2 bg-emerald-500/20 rounded-t h-[40%]"></div>
-                                <div className="w-2 bg-emerald-500/20 rounded-t h-[60%]"></div>
-                                <div className="w-2 bg-emerald-500/40 rounded-t h-[50%]"></div>
-                                <div className="w-2 bg-emerald-500/60 rounded-t h-[80%]"></div>
-                                <div className="w-2 bg-emerald-500 rounded-t h-[100%] shadow-[0_0_10px_#10b981]"></div>
-                            </div>
+                        <div className="mt-6 flex items-end gap-1 h-10">
+                            <div className="w-2 bg-emerald-500/20 rounded-t h-[40%]"></div>
+                            <div className="w-2 bg-emerald-500/40 rounded-t h-[60%]"></div>
+                            <div className="w-2 bg-emerald-500/60 rounded-t h-[80%]"></div>
                         </div>
-                        <p className="text-emerald-500 text-xs font-bold mt-4 flex items-center gap-1">
-                            +13.5% <span className="text-slate-500 font-normal">from last month</span>
-                        </p>
                     </div>
                 </div>
 
-                {/* Card 4: Circular Gauge (Right) */}
-                <div className="p-6 rounded-2xl bg-[#0B0F19] border border-indigo-500/30 flex items-center justify-center relative">
-                    <div className="w-32 h-32 relative flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-full border-4 border-slate-800"></div>
-                        <svg className="w-full h-full transform -rotate-90">
-                            <circle
-                                cx="64"
-                                cy="64"
-                                r="58"
-                                stroke="#10b981"
-                                strokeWidth="8"
-                                fill="transparent"
-                                strokeDasharray="364"
-                                strokeDashoffset="90" // 75% filled
-                                strokeLinecap="round"
-                                className="drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                            />
-                        </svg>
-                        <div className="absolute text-center">
-                            <span className="text-2xl font-bold text-white">$4.5K</span>
+                {/* Card 4: Action */}
+                <div className="p-6 rounded-2xl bg-[#0B0F19] border border-indigo-500/30 relative overflow-hidden group hover:border-indigo-400 transition-colors flex flex-col justify-center items-center text-center cursor-pointer">
+                    <Link to="/salary" className="w-full h-full flex flex-col items-center justify-center">
+                        <div className="p-4 bg-indigo-500/10 rounded-full text-indigo-400 mb-3 group-hover:scale-110 transition-transform">
+                            <TrendingUp size={24} />
                         </div>
-                    </div>
+                        <h3 className="font-bold text-white">New Audit</h3>
+                        <p className="text-slate-500 text-xs mt-1">Upload a document</p>
+                    </Link>
                 </div>
             </div>
 
@@ -157,60 +210,39 @@ const Overview: React.FC = () => {
                 <div className="lg:col-span-2 space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl font-bold text-white">Recent Audits</h2>
-                        <button className="text-sm text-indigo-400 hover:text-indigo-300">View all</button>
                     </div>
 
                     <div className="space-y-3">
-                        {/* Item 1 */}
-                        <div className="p-4 rounded-xl bg-[#111827] border border-slate-800/50 flex items-center justify-between hover:bg-[#1f2937] transition-colors group">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-indigo-500/10 rounded-lg text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-                                    <TrendingUp size={20} />
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-white text-sm">Acme Corp</h4>
-                                    <p className="text-slate-500 text-xs">Investment Audit • 2 hours ago</p>
-                                </div>
+                        {!hasData ? (
+                            <div className="p-8 rounded-xl bg-[#111827] border border-slate-800 border-dashed text-center">
+                                <p className="text-slate-400 mb-4">No audits found yet.</p>
+                                <Link to="/salary" className="text-indigo-400 hover:text-indigo-300 font-medium">Start your first audit &rarr;</Link>
                             </div>
-                            <div className="flex items-center gap-4">
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Low Risk</span>
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400">Completed</span>
-                            </div>
-                        </div>
-
-                        {/* Item 2 */}
-                        <div className="p-4 rounded-xl bg-[#111827] border border-cyan-500/30 flex items-center justify-between hover:bg-[#1f2937] transition-colors group shadow-[0_0_15px_rgba(34,211,238,0.05)]">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-cyan-500/10 rounded-lg text-cyan-400 group-hover:bg-cyan-500 group-hover:text-white transition-colors">
-                                    <FileText size={20} />
+                        ) : (
+                            recentAudits.map((audit) => (
+                                <div key={audit.id} className="p-4 rounded-xl bg-[#111827] border border-slate-800/50 flex items-center justify-between hover:bg-[#1f2937] transition-colors group">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-3 rounded-lg ${audit.audit_type === 'salary' ? 'bg-emerald-500/10 text-emerald-400' :
+                                            audit.audit_type === 'loan' ? 'bg-cyan-500/10 text-cyan-400' :
+                                                'bg-indigo-500/10 text-indigo-400'
+                                            }`}>
+                                            {audit.audit_type === 'salary' ? <Banknote size={20} /> :
+                                                audit.audit_type === 'loan' ? <HandCoins size={20} /> :
+                                                    <TrendingUp size={20} />}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-white text-sm capitalize">{audit.filename}</h4>
+                                            <p className="text-slate-500 text-xs capitalize">
+                                                {audit.audit_type} Audit • {formatDistanceToNow(new Date(audit.created_at), { addSuffix: true })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 capitalize">{audit.status}</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 className="font-bold text-white text-sm">TechStart Inc</h4>
-                                    <p className="text-slate-500 text-xs">Loan Audit • 5 hours ago</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">Medium Risk</span>
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 animate-pulse">In Progress</span>
-                            </div>
-                        </div>
-
-                        {/* Item 3 */}
-                        <div className="p-4 rounded-xl bg-[#111827] border border-slate-800/50 flex items-center justify-between hover:bg-[#1f2937] transition-colors group">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-purple-500/10 rounded-lg text-purple-400 group-hover:bg-purple-500 group-hover:text-white transition-colors">
-                                    <Banknote size={20} />
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-white text-sm">Global Solutions</h4>
-                                    <p className="text-slate-500 text-xs">Salary Audit • 1 day ago</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Low Risk</span>
-                                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400">Completed</span>
-                            </div>
-                        </div>
+                            ))
+                        )}
                     </div>
                 </div>
 
@@ -224,7 +256,6 @@ const Overview: React.FC = () => {
                                 <TrendingUp size={24} />
                                 <span className="font-bold">Investment Analysis</span>
                             </div>
-                            <p className="text-indigo-100 text-xs opacity-80">Review investment documents</p>
                         </div>
                     </Link>
 
@@ -234,18 +265,15 @@ const Overview: React.FC = () => {
                                 <HandCoins size={24} />
                                 <span className="font-bold">Loan Audit</span>
                             </div>
-                            <p className="text-slate-500 text-xs">Analyze loan agreements</p>
                         </div>
                     </Link>
 
                     <Link to="/salary" className="block group">
                         <div className="p-4 rounded-xl bg-[#1e293b] border border-green-900/30 hover:border-green-500/50 hover:bg-[#142320] transition-all group-hover:scale-[1.02] relative overflow-hidden">
-                            <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <div className="flex items-center gap-3 mb-2 text-emerald-400">
                                 <Banknote size={24} />
                                 <span className="font-bold">Salary Review</span>
                             </div>
-                            <p className="text-slate-500 text-xs">Audit compensation docs</p>
                         </div>
                     </Link>
                 </div>

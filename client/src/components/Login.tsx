@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -12,6 +13,15 @@ const Login: React.FC = () => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
+
+    const { session } = useAuth(); // Get session from context
+
+    // Auto-redirect if already logged in
+    React.useEffect(() => {
+        if (session) {
+            navigate('/overview');
+        }
+    }, [session, navigate]);
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -33,7 +43,7 @@ const Login: React.FC = () => {
                     password,
                 });
                 if (error) throw error;
-                navigate('/');
+                navigate('/overview'); // FIXED: Go to Dashboard, not Landing Page
             }
         } catch (err: any) {
             setError(err.message);

@@ -4,18 +4,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatINR } from '../utils/financialMath';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import ChatAdvisor from './ChatAdvisor';
+import { useAuth } from '../context/AuthContext';
 import {
     Banknote,
     FileText,
     AlertTriangle,
-    Wallet,
     CheckCircle2,
     UploadCloud,
-    Calculator,
     PieChart as PieIcon,
     ShieldAlert,
-    Zap,
-    ChevronDown
+    ChevronDown,
+    TrendingUp
 } from 'lucide-react';
 
 // Manual Categorization Logic for risk
@@ -66,6 +65,7 @@ const SalaryAudit: React.FC = () => {
     const [deductionsMonthly, setDeductionsMonthly] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [view, setView] = useState<'upload' | 'dashboard'>('upload');
+    const { session } = useAuth();
 
     // New State for Accordion expansion
     const [expandedRisk, setExpandedRisk] = useState<number | null>(null);
@@ -78,6 +78,7 @@ const SalaryAudit: React.FC = () => {
     };
 
     const handleAnalyze = async () => {
+        console.log("handleAnalyze called. File:", file?.name);
         if (!file) return;
         setLoading(true);
         setError(null);
@@ -87,9 +88,16 @@ const SalaryAudit: React.FC = () => {
         formData.append('file', file);
 
         try {
+            console.log("Sending request to /api/analyze/salary...");
+            console.log("Session Token present:", !!session?.access_token);
+
             const response = await axios.post('http://localhost:8000/api/analyze/salary', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
             });
+            console.log("Response received:", response.status);
             const extracted: SalaryData = response.data.data;
             setData(extracted);
 
@@ -105,9 +113,10 @@ const SalaryAudit: React.FC = () => {
             setView('dashboard');
 
         } catch (err) {
-            console.error(err);
-            setError("Failed to analyze salary document.");
+            console.error("Analysis Error:", err);
+            setError("Failed to analyze salary document. Check console for details.");
         } finally {
+            console.log("Analysis process finished (finally block).");
             setLoading(false);
         }
     };
