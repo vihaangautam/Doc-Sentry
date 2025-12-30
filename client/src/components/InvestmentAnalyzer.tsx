@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateXIRR, formatINR } from '../utils/financialMath';
+import { API_BASE_URL } from '../apiConfig';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import ChatAdvisor from './ChatAdvisor';
 import { useAuth } from '../context/AuthContext';
@@ -99,7 +100,11 @@ const InvestmentAnalyzer: React.FC = () => {
 
         try {
             // Replace with your backend URL
-            const response = await axios.post('http://localhost:8000/api/analyze/investment', formData, {
+
+            // ... existing imports ...
+
+            // ... inside component ...
+            const response = await axios.post(`${API_BASE_URL}/api/analyze/investment`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     'Authorization': `Bearer ${session?.access_token}`

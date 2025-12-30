@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateAPR, formatINR } from '../utils/financialMath';
+import { API_BASE_URL } from '../apiConfig';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import ChatAdvisor from './ChatAdvisor';
 import { useAuth } from '../context/AuthContext';
@@ -113,7 +114,11 @@ const LoanAudit: React.FC = () => {
 
         try {
             // Replace with your actual backend URL
-            const response = await axios.post('http://localhost:8000/api/analyze/loan', formData, {
+
+            // ... existing imports ...
+
+            // ... inside component ...
+            const response = await axios.post(`${API_BASE_URL}/api/analyze/loan`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     'Authorization': `Bearer ${session?.access_token}`

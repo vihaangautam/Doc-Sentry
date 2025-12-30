@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../apiConfig';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, TrendingUp } from 'lucide-react';
 
@@ -37,7 +38,7 @@ const ChatAdvisor: React.FC<ChatAdvisorProps> = ({ context, embedded = false }) 
         setLoading(true);
 
         try {
-            const response = await axios.post('http://localhost:8000/api/chat/ask', {
+            const response = await axios.post(`${API_BASE_URL}/api/chat/ask`, {
                 document_context: context,
                 history: messages,
                 question: userMsg.parts
