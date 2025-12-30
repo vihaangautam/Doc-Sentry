@@ -7,37 +7,65 @@ import ChatAdvisor from './ChatAdvisor';
 import { useAuth } from '../context/AuthContext';
 import {
     HandCoins,
-    FileText,
     AlertTriangle,
     CheckCircle2,
     UploadCloud,
     Calculator,
     PieChart as PieIcon,
-    ShieldAlert,
     Zap,
-    ChevronDown,
-    Landmark
+    ChevronDown
 } from 'lucide-react';
 
-// Manual Categorization Logic for Loan Risks
+// --- INDIAN CONTEXT LOGIC START ---
+
+// 1. Risk Categorization optimized for RBI Guidelines & Indian Banking Practices
 const getRiskCategory = (text: string) => {
     const lower = text.toLowerCase();
-    if (lower.includes('floating') || lower.includes('variable') || lower.includes('reset')) return { title: 'Interest Rate Risk', severity: 'high' as const };
-    if (lower.includes('penalty') || lower.includes('charge') || lower.includes('fee')) return { title: 'Hidden Charges', severity: 'medium' as const };
-    if (lower.includes('insurance') || lower.includes('bundled')) return { title: 'Bundled Insurance', severity: 'medium' as const };
-    if (lower.includes('default') || lower.includes('late')) return { title: 'Default Clauses', severity: 'high' as const };
+
+    // Regulatory & Criminal Liabilities (High Severity)
+    if (lower.includes('check bounce') || lower.includes('section 138') || lower.includes('criminal'))
+        return { title: 'Criminal Liability (Sec 138)', severity: 'high' as const };
+    if (lower.includes('blank cheque') || lower.includes('security cheque') || lower.includes('undated'))
+        return { title: 'Blank Cheque Risk', severity: 'high' as const };
+    if (lower.includes('default') || lower.includes('recall'))
+        return { title: 'Accelerated Repayment', severity: 'high' as const };
+
+    // Interest Rate Regime (Medium Severity)
+    if (lower.includes('mclr') || lower.includes('base rate'))
+        return { title: 'Opaque Rate (MCLR/Base)', severity: 'medium' as const };
+    if (lower.includes('floating') || lower.includes('variable') || lower.includes('reset'))
+        return { title: 'Interest Rate Volatility', severity: 'medium' as const };
+
+    // Costs & Bundling (Medium/High)
+    if (lower.includes('insurance') && (lower.includes('mandatory') || lower.includes('condition')))
+        return { title: 'Forced Insurance Bundle', severity: 'high' as const };
+    if (lower.includes('gst') && lower.includes('not included'))
+        return { title: 'GST Extra (18%)', severity: 'medium' as const };
+    if (lower.includes('penalty') || lower.includes('foreclosure'))
+        return { title: 'Foreclosure Penalty', severity: 'medium' as const };
+
     return { title: 'General Condition', severity: 'low' as const };
 };
 
-// Logic for Loan Optimization Tips
+// 2. Optimization Strategies for Indian Borrowers
 const getOptimizationCategory = (text: string) => {
     const lower = text.toLowerCase();
-    if (lower.includes('prepayment') || lower.includes('foreclosure')) return { title: 'Prepayment Options' };
-    if (lower.includes('transfer') || lower.includes('refinance')) return { title: 'Balance Transfer' };
-    if (lower.includes('insurance') || lower.includes('coverage')) return { title: 'Insurance Opt-out' };
-    if (lower.includes('tenure') || lower.includes('term')) return { title: 'Tenure Optimization' };
+
+    if (lower.includes('mclr') || lower.includes('base rate'))
+        return { title: 'Switch to Repo Linked (RLLR)' };
+    if (lower.includes('insurance') || lower.includes('premium'))
+        return { title: 'Opt for Term Life (Cheaper)' };
+    if (lower.includes('processing') || lower.includes('login fee'))
+        return { title: 'Request Fee Waiver' }; // Common in festival offers
+    if (lower.includes('prepayment') || lower.includes('part payment'))
+        return { title: 'Use Bonus to Prepay' };
+    if (lower.includes('tenure') && lower.includes('240'))
+        return { title: 'Check 15y vs 20y Tenure' };
+
     return { title: 'Loan Structure' };
 };
+
+// --- INDIAN CONTEXT LOGIC END ---
 
 interface LoanData {
     bank_name: string;
@@ -50,7 +78,7 @@ interface LoanData {
     emi_amount: number;
     loan_type: string;
     red_flags: string[];
-    optimization_tips?: string[]; // Added to match structure, even if empty from backend for now
+    optimization_tips?: string[];
 }
 
 const LoanAudit: React.FC = () => {
@@ -59,6 +87,7 @@ const LoanAudit: React.FC = () => {
     const [data, setData] = useState<LoanData | null>(null);
     const [effectiveAPR, setEffectiveAPR] = useState<number | null>(null);
     const [totalInterest, setTotalInterest] = useState<number | null>(null);
+    const [estimatedGST, setEstimatedGST] = useState<number>(0);
     const [view, setView] = useState<'upload' | 'dashboard'>('upload');
     const [error, setError] = useState<string | null>(null);
     const { session } = useAuth();
@@ -83,6 +112,7 @@ const LoanAudit: React.FC = () => {
         formData.append('file', file);
 
         try {
+            // Replace with your actual backend URL
             const response = await axios.post('http://localhost:8000/api/analyze/loan', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
@@ -93,47 +123,60 @@ const LoanAudit: React.FC = () => {
             const extracted: LoanData = response.data.data;
             console.log("Final Loan Data:", extracted);
 
-            // Mock optimization tips if not present (to match UI structure)
-            if (!extracted.optimization_tips) {
+            // Default Indian context tips if API returns none
+            if (!extracted.optimization_tips || extracted.optimization_tips.length === 0) {
                 extracted.optimization_tips = [
-                    "Check if 'Bundled Insurance' is mandatory. RBI guidelines often make it optional.",
-                    "Negotiate the 'Processing Fee'. Many banks waive this for premium profiles.",
-                    "Ensure there are no 'Prepayment Penalties' for floating rate loans (RBI mandated)."
+                    "Ask if the interest rate is Repo Rate Linked (RLLR) or MCLR.",
+                    "Check if 'Credit Life Insurance' is optional. RBI guidelines usually make it voluntary.",
+                    "Negotiate the Processing Fee. Banks often waive it for high CIBIL scores."
                 ];
             }
 
-            setData(extracted);
-
-            // Calculations - Robust Logic
+            // --- ROBUST INDIAN CALCULATION LOGIC ---
             const safeNum = (val: any) => Number(val) || 0;
-
             const loanAmt = safeNum(extracted.loan_amount);
             const rate = safeNum(extracted.interest_rate_quoted);
 
             if (loanAmt && rate) {
-                const totalFees = safeNum(extracted.processing_fees) + safeNum(extracted.insurance_bundled) + safeNum(extracted.other_charges);
+                const procFee = safeNum(extracted.processing_fees);
+                const insurance = safeNum(extracted.insurance_bundled);
+                const otherCharges = safeNum(extracted.other_charges);
+
+                // 1. GST Calculation (Critical for India)
+                // Fees and Insurance usually attract 18% GST if not stated otherwise.
+                // We estimate it to show the "Real" outflow.
+                const gstEst = (procFee + insurance + otherCharges) * 0.18;
+                setEstimatedGST(gstEst);
+
+                const totalUpfrontCost = procFee + insurance + otherCharges + gstEst;
+
                 const quotedRateDecimal = rate / 100;
-                const tenure = safeNum(extracted.tenure_months) || 240;
+                const tenure = safeNum(extracted.tenure_months) || 240; // Default to 20y if missing
                 const emi = safeNum(extracted.emi_amount);
 
+                // 2. Effective APR Calculation
                 const apr = calculateAPR(
                     loanAmt,
-                    totalFees,
+                    totalUpfrontCost, // Higher fee base (incl GST) = Higher Effective APR
                     tenure,
                     quotedRateDecimal
                 );
 
-                // Total Interest Payable = (EMI * Tenure) - Principal
+                // 3. Interest Calculation
                 const totalRepayment = (emi > 0 ? emi : 0) * tenure;
-                const interest = totalRepayment > loanAmt ? (totalRepayment - loanAmt) : (loanAmt * quotedRateDecimal * (tenure / 12)); // Fallback approximation if EMI missing
+                // If EMI is parsed correctly, use it. Else use simple interest approximation for fallback
+                const interest = totalRepayment > loanAmt
+                    ? (totalRepayment - loanAmt)
+                    : (loanAmt * quotedRateDecimal * (tenure / 12));
 
                 setEffectiveAPR(apr);
                 setTotalInterest(interest);
+                setData(extracted);
                 setView('dashboard');
             }
         } catch (err) {
             console.error(err);
-            setError("Failed to analyze loan document.");
+            setError("Failed to analyze loan document. Please check the file format.");
         } finally {
             setLoading(false);
         }
@@ -144,7 +187,8 @@ const LoanAudit: React.FC = () => {
         return [
             { name: 'Principal', value: data.loan_amount, color: '#06b6d4', desc: 'Loan Amount' }, // Cyan
             { name: 'Interest', value: totalInterest, color: '#ef4444', desc: 'Cost of Borrowing' }, // Red
-            { name: 'Fees', value: (data.processing_fees || 0) + (data.insurance_bundled || 0), color: '#fbbf24', desc: 'Upfront Loss' }, // Amber
+            // Combine Fees and GST for the chart to keep it clean, but explain in tooltip
+            { name: 'Fees + GST', value: (data.processing_fees || 0) + (data.insurance_bundled || 0) + estimatedGST, color: '#fbbf24', desc: 'Upfront Loss (incl. 18% GST)' }, // Amber
         ].filter(item => item.value > 0);
     };
 
@@ -170,7 +214,7 @@ const LoanAudit: React.FC = () => {
 
                                 <h1 className="text-4xl font-display font-bold text-white mb-2 tracking-tight">Loan Decoder</h1>
                                 <p className="text-slate-400 text-lg mb-8 max-w-md mx-auto">
-                                    Find the <span className="text-cyan-400 font-semibold">True Cost</span> of your loan. Reveal hidden fees and effective APR.
+                                    Find the <span className="text-cyan-400 font-semibold">True Cost</span> of your loan. Reveal hidden fees, GST impact, and effective APR.
                                 </p>
 
                                 <div className="w-full max-w-md border-2 border-dashed border-slate-700 rounded-2xl p-10 hover:border-cyan-500/50 hover:bg-slate-800/50 transition-all cursor-pointer group-hover:shadow-[inset_0_0_20px_rgba(6,182,212,0.05)] relative">
@@ -187,7 +231,7 @@ const LoanAudit: React.FC = () => {
                                         </div>
                                         <div className="space-y-1">
                                             <p className="font-semibold text-slate-200 text-lg">
-                                                {file ? file.name : "Drop sanction letter here"}
+                                                {file ? file.name : "Drop Sanction Letter Here"}
                                             </p>
                                             <p className="text-slate-500 text-sm">
                                                 {file ? "Ready to audit" : "Supports PDF, JPG, PNG"}
@@ -234,6 +278,7 @@ const LoanAudit: React.FC = () => {
                                         (+{((effectiveAPR! * 100) - (data?.interest_rate_quoted || 0)).toFixed(2)}%)
                                     </span>
                                 </div>
+                                <div className="text-[10px] text-slate-500 mt-1">Includes Fees + 18% GST impact</div>
                             </div>
 
                             {/* Card 2: EMI */}
@@ -302,21 +347,26 @@ const LoanAudit: React.FC = () => {
                                             <div className="w-2 h-2 rounded-full bg-cyan-500"></div>
                                             <span className="text-slate-300">Principal</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.loan_amount)}</span>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.loan_amount ?? 0)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-red-500"></div>
                                             <span className="text-slate-300">Interest</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR(totalInterest)}</span>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(totalInterest ?? 0)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-amber-400"></div>
-                                            <span className="text-slate-300">Fees & Charges</span>
+                                            <span className="text-slate-300">Fees + GST</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR((data?.processing_fees || 0) + (data?.insurance_bundled || 0))}</span>
+                                        <div className="text-right">
+                                            <span className="font-mono font-medium text-slate-200 block">
+                                                {formatINR((data?.processing_fees || 0) + (data?.insurance_bundled || 0) + estimatedGST)}
+                                            </span>
+                                            {estimatedGST > 0 && <span className="text-[10px] text-slate-500 block">incl. {formatINR(estimatedGST)} GST</span>}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -327,12 +377,12 @@ const LoanAudit: React.FC = () => {
                                 <div className="flex-1 min-h-0 glass-card p-0 flex flex-col overflow-hidden border-white/10">
                                     <div className="p-4 border-b border-white/5 bg-red-500/5 shrink-0">
                                         <h3 className="font-bold text-red-400 text-sm flex items-center gap-2">
-                                            <ShieldAlert size={16} /> Risk Analysis ({data?.red_flags?.length || 0})
+                                            <AlertTriangle size={16} /> Risk Analysis ({data?.red_flags?.length || 0})
                                         </h3>
                                     </div>
                                     <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-                                        {data?.red_flags?.length > 0 ? (
-                                            data.red_flags.map((flagStr, i) => {
+                                        {(data?.red_flags?.length || 0) > 0 ? (
+                                            (data?.red_flags || []).map((flagStr, i) => {
                                                 const { title, severity } = getRiskCategory(flagStr);
                                                 return (
                                                     <div
@@ -370,8 +420,6 @@ const LoanAudit: React.FC = () => {
                                         )}
                                     </div>
                                 </div>
-
-                                {/* Optimization Section */}
                                 <div className="flex-1 min-h-0 glass-card p-0 flex flex-col overflow-hidden border-white/10">
                                     <div className="p-4 border-b border-white/5 bg-purple-500/5 shrink-0">
                                         <h3 className="font-bold text-purple-400 text-sm flex items-center gap-2">
@@ -379,8 +427,8 @@ const LoanAudit: React.FC = () => {
                                         </h3>
                                     </div>
                                     <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-                                        {data?.optimization_tips?.length > 0 ? (
-                                            data.optimization_tips.map((tipStr, i) => {
+                                        {(data?.optimization_tips?.length || 0) > 0 ? (
+                                            (data?.optimization_tips || []).map((tipStr, i) => {
                                                 const { title } = getOptimizationCategory(tipStr);
                                                 return (
                                                     <div

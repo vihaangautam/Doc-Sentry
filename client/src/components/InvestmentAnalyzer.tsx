@@ -7,7 +7,6 @@ import ChatAdvisor from './ChatAdvisor';
 import { useAuth } from '../context/AuthContext';
 import {
     PiggyBank,
-    FileText,
     AlertTriangle,
     TrendingUp,
     UploadCloud,
@@ -16,38 +15,55 @@ import {
     ShieldAlert,
     Zap,
     ChevronDown,
-    LineChart
 } from 'lucide-react';
 
-// Manual Categorization for Investment Risks
+// --- INDIAN CONTEXT LOGIC START ---
+
+// 1. Risk Categorization optimized for Indian Insurance/Investments
 const getRiskCategory = (text: string) => {
     const lower = text.toLowerCase();
-    if (lower.includes('lock-in') || lower.includes('surrender') || lower.includes('penalty')) return { title: 'Liquidity Risk', severity: 'high' as const };
-    if (lower.includes('inflation') || lower.includes('real return')) return { title: 'Inflation Risk', severity: 'medium' as const };
-    if (lower.includes('market') || lower.includes('equity') || lower.includes('volatility')) return { title: 'Market Volatility', severity: 'medium' as const };
-    if (lower.includes('mortality') || lower.includes('allocation')) return { title: 'High Charges', severity: 'high' as const };
+
+    // High Severity (Wealth Killers)
+    if (lower.includes('surrender') || lower.includes('discontinuance'))
+        return { title: 'High Surrender Charges', severity: 'high' as const };
+    if (lower.includes('mortality') || lower.includes('admin') || lower.includes('allocation'))
+        return { title: 'High Hidden Charges', severity: 'high' as const };
+    if (lower.includes('lock-in') && lower.includes('5 years'))
+        return { title: '5-Year Lock-in (ULIP)', severity: 'medium' as const };
+
+    // Medium Severity (Inflation/Market)
+    if (lower.includes('inflation') || lower.includes('real return'))
+        return { title: 'Inflation Risk', severity: 'medium' as const };
+    if (lower.includes('market') || lower.includes('equity') || lower.includes('nav'))
+        return { title: 'Market Volatility', severity: 'medium' as const };
+
     return { title: 'Policy Condition', severity: 'low' as const };
 };
 
-// Categorization for Investment Opportunities/Tips
+// 2. Opportunity Categorization (Tax & Optimization)
 const getOpportunityCategory = (text: string) => {
     const lower = text.toLowerCase();
-    if (lower.includes('tax') || lower.includes('80c') || lower.includes('10(10d)')) return { title: 'Tax Efficiency' };
-    if (lower.includes('switch') || lower.includes('fund')) return { title: 'Fund Switching' };
-    if (lower.includes('paid-up') || lower.includes('continue')) return { title: 'Policy Optimization' };
+
+    if (lower.includes('80c')) return { title: 'Tax Deduction (Sec 80C)' };
+    if (lower.includes('10(10d)')) return { title: 'Tax-Free Maturity' };
+    if (lower.includes('switch') || lower.includes('fund')) return { title: 'Fund Switching Option' };
+    if (lower.includes('paid-up')) return { title: 'Make Policy Paid-Up?' };
     if (lower.includes('term') || lower.includes('cover')) return { title: 'Insurance Adequacy' };
+
     return { title: 'Growth Strategy' };
 };
+
+// --- INDIAN CONTEXT LOGIC END ---
 
 interface ExtractionData {
     policy_name: string;
     premium_amount: number;
-    payment_frequency: string;
+    payment_frequency: string; // "Monthly", "Annual", etc.
     policy_term_years: number;
     maturity_years: number;
     maturity_benefit_illustration: number;
     red_flags: string[];
-    opportunities?: string[]; // Added for UI consistency
+    opportunities?: string[];
 }
 
 const InvestmentAnalyzer: React.FC = () => {
@@ -73,7 +89,6 @@ const InvestmentAnalyzer: React.FC = () => {
 
     const handleAnalyze = async () => {
         if (!file) return;
-
         setLoading(true);
         setError(null);
         setData(null);
@@ -83,6 +98,7 @@ const InvestmentAnalyzer: React.FC = () => {
         formData.append('file', file);
 
         try {
+            // Replace with your backend URL
             const response = await axios.post('http://localhost:8000/api/analyze/investment', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
@@ -93,59 +109,78 @@ const InvestmentAnalyzer: React.FC = () => {
             const extracted: ExtractionData = response.data.data;
             console.log("Final Investment Data:", extracted);
 
-            // Mock opportunities if missing
-            if (!extracted.opportunities) {
+            // Mock opportunities if missing (Indian Context defaults)
+            if (!extracted.opportunities || extracted.opportunities.length === 0) {
                 extracted.opportunities = [
-                    "Consider 'Paid-Up' option if returns are below 6% (Infinity inflation).",
-                    "Tax Benefit under 80C is applicable for premiums paid.",
-                    "Check if 'Maturity Proceeds' are tax-free under section 10(10D)."
+                    "Check if 'Maturity Proceeds' are tax-free under Section 10(10D).",
+                    "Premium paid qualifies for tax deduction under Section 80C (up to 1.5L).",
+                    "If returns are < 6%, consider making the policy 'Paid-Up' to stop losses."
                 ];
             }
 
             setData(extracted);
 
-            // Calculations - Robust
+            // --- ROBUST CALCULATION LOGIC (FIXED XIRR BUG) ---
             const safeNum = (val: any) => Number(val) || 0;
-            const premium = safeNum(extracted.premium_amount);
-            const maturity = safeNum(extracted.maturity_benefit_illustration);
-            const term = safeNum(extracted.policy_term_years) || 10;
-            const maturityYears = safeNum(extracted.maturity_years) || 15;
+            const installmentPremium = safeNum(extracted.premium_amount);
+            const termYears = safeNum(extracted.policy_term_years) || 10;
+            const maturityVal = safeNum(extracted.maturity_benefit_illustration);
+            const frequency = extracted.payment_frequency?.toLowerCase() || 'annual';
 
-            // Calculate Metrics
-            if (premium && maturity) {
-                const totalInv = premium * term;
-                const profit = maturity - totalInv;
+            // 1. Determine Payment Frequency Multiplier
+            let paymentsPerYear = 1;
+            if (frequency.includes('mon')) paymentsPerYear = 12;
+            else if (frequency.includes('quart')) paymentsPerYear = 4;
+            else if (frequency.includes('half')) paymentsPerYear = 2;
 
-                setTotalInvested(totalInv);
-                setNetProfit(profit);
+            // 2. Calculate Actual Total Invested
+            const totalPaymentsCount = termYears * paymentsPerYear;
+            const totalInv = installmentPremium * totalPaymentsCount;
+            const profit = maturityVal - totalInv;
 
-                // Calculate XIRR
+            setTotalInvested(totalInv);
+            setNetProfit(profit);
+
+            // 3. Generate Correct Cash Flows for XIRR
+            if (installmentPremium > 0 && maturityVal > 0) {
                 const flow = [];
-                const annualPremium = extracted.premium_amount;
-                const yearsToPay = extracted.policy_term_years || 10;
                 const startDate = new Date();
 
-                // Outflows
-                for (let i = 0; i < yearsToPay; i++) {
+                // Generate Outflows based on Frequency
+                for (let i = 0; i < totalPaymentsCount; i++) {
                     const date = new Date(startDate);
-                    date.setFullYear(startDate.getFullYear() + i);
-                    flow.push({ amount: -Math.abs(annualPremium), date: date });
+
+                    // Logic to increment date correctly based on frequency
+                    if (paymentsPerYear === 12) {
+                        date.setMonth(startDate.getMonth() + i);
+                    } else if (paymentsPerYear === 4) {
+                        date.setMonth(startDate.getMonth() + (i * 3));
+                    } else if (paymentsPerYear === 2) {
+                        date.setMonth(startDate.getMonth() + (i * 6));
+                    } else {
+                        date.setFullYear(startDate.getFullYear() + i);
+                    }
+
+                    // Cash outflow is negative
+                    flow.push({ amount: -Math.abs(installmentPremium), date: date });
                 }
 
-                // Inflow
+                // Generate Inflow (Maturity)
                 const maturityDate = new Date(startDate);
                 maturityDate.setFullYear(startDate.getFullYear() + (extracted.maturity_years || 15));
-                flow.push({ amount: extracted.maturity_benefit_illustration, date: maturityDate });
+
+                // Cash inflow is positive
+                flow.push({ amount: maturityVal, date: maturityDate });
 
                 const resultXirr = calculateXIRR(flow);
                 setXirr(resultXirr);
-
-                setView('dashboard');
             }
+
+            setView('dashboard');
 
         } catch (err) {
             console.error(err);
-            setError("Failed to analyze document. Please try again.");
+            setError("Failed to analyze document. Please check the file format.");
         } finally {
             setLoading(false);
         }
@@ -303,7 +338,7 @@ const InvestmentAnalyzer: React.FC = () => {
                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                         <div className="text-center">
                                             <div className="text-xl font-bold text-indigo-400">
-                                                {(netProfit! / totalInvested! * 100).toFixed(0)}%
+                                                {((netProfit || 0) / (totalInvested || 1) * 100).toFixed(0)}%
                                             </div>
                                             <div className="text-[9px] text-slate-500 uppercase font-bold">Absolute Return</div>
                                         </div>
@@ -315,14 +350,14 @@ const InvestmentAnalyzer: React.FC = () => {
                                             <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
                                             <span className="text-slate-300">Invested</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR(totalInvested)}</span>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(totalInvested ?? 0)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                                             <span className="text-slate-300">Profit</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR(netProfit)}</span>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(netProfit ?? 0)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
                                         <span className="text-slate-400">Policy Term</span>
@@ -337,6 +372,7 @@ const InvestmentAnalyzer: React.FC = () => {
 
                             {/* COLUMN 2: Risks & Opportunities */}
                             <div className="col-span-12 lg:col-span-5 flex flex-col gap-6 h-full min-h-0">
+
                                 {/* Risk Section */}
                                 <div className="flex-1 min-h-0 glass-card p-0 flex flex-col overflow-hidden border-white/10">
                                     <div className="p-4 border-b border-white/5 bg-red-500/5 shrink-0">
@@ -345,8 +381,8 @@ const InvestmentAnalyzer: React.FC = () => {
                                         </h3>
                                     </div>
                                     <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-                                        {data?.red_flags?.length > 0 ? (
-                                            data.red_flags.map((flagStr, i) => {
+                                        {(data?.red_flags?.length || 0) > 0 ? (
+                                            (data?.red_flags || []).map((flagStr, i) => {
                                                 const { title, severity } = getRiskCategory(flagStr);
                                                 return (
                                                     <div
@@ -393,8 +429,8 @@ const InvestmentAnalyzer: React.FC = () => {
                                         </h3>
                                     </div>
                                     <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-                                        {data?.opportunities?.length > 0 ? (
-                                            data.opportunities.map((tipStr, i) => {
+                                        {(data?.opportunities?.length || 0) > 0 ? (
+                                            (data?.opportunities || []).map((tipStr, i) => {
                                                 const { title } = getOpportunityCategory(tipStr);
                                                 return (
                                                     <div
@@ -428,7 +464,6 @@ const InvestmentAnalyzer: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
-
                             {/* COLUMN 3: Advisor AI */}
                             <div className="col-span-12 lg:col-span-4 glass-card p-0 flex flex-col h-full overflow-hidden border-2 border-slate-800 focus-within:border-indigo-500/30 transition-colors">
                                 <div className="p-3 border-b border-white/5 bg-slate-800/50 flex items-center justify-between shrink-0">

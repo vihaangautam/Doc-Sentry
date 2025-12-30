@@ -7,10 +7,6 @@ import {
     PiggyBank,
     HandCoins,
     Banknote,
-    Menu,
-    X,
-    Search,
-    Bell,
     ChevronRight,
     LogOut,
     ScanLine,
@@ -22,12 +18,10 @@ interface DashboardLayoutProps {
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen] = useState(true);
     const location = useLocation();
     const navigate = useNavigate();
     const { signOut } = useAuth();
-
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
     const handleLogout = async () => {
         await signOut();

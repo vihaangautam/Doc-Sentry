@@ -7,14 +7,12 @@ import ChatAdvisor from './ChatAdvisor';
 import { useAuth } from '../context/AuthContext';
 import {
     Banknote,
-    FileText,
     AlertTriangle,
     CheckCircle2,
     UploadCloud,
     PieChart as PieIcon,
     ShieldAlert,
     ChevronDown,
-    TrendingUp,
     Zap,
     Calculator
 } from 'lucide-react';
@@ -29,7 +27,8 @@ const getRiskCategory = (text: string) => {
     if (lower.includes('gratutity') || lower.includes('insurance')) return { title: 'Benefits Gap', severity: 'medium' as const };
     return { title: 'General Anomaly', severity: 'low' as const };
 };
-//Manual Categorization Logic for negotiation tips
+
+// Manual Categorization Logic for negotiation tips
 const getNegotiationCategory = (text: string) => {
     const lower = text.toLowerCase();
     if (lower.includes('bonus') || lower.includes('joining') || lower.includes('sign')) return { title: 'Joining Bonus' };
@@ -54,7 +53,6 @@ interface SalaryData {
     insurance_benefit_annual: number;
     variable_performance_bonus_annual: number;
     other_deductions_monthly: number;
-    // Reverted to strings for manual processing
     red_flags: string[];
     negotiation_tips?: string[];
 }
@@ -69,7 +67,7 @@ const SalaryAudit: React.FC = () => {
     const [view, setView] = useState<'upload' | 'dashboard'>('upload');
     const { session } = useAuth();
 
-    // New State for Accordion expansion
+    // Accordion expansion state
     const [expandedRisk, setExpandedRisk] = useState<number | null>(null);
     const [expandedNeg, setExpandedNeg] = useState<number | null>(null);
 
@@ -96,32 +94,66 @@ const SalaryAudit: React.FC = () => {
                 },
             });
             const extracted: SalaryData = response.data.data;
-            console.log("Final Extracted Data used for Calc:", extracted);
-            setData(extracted);
+            console.log("Raw Extracted Data:", extracted);
 
-            // Robust Calculation: Ensure all inputs are Numbers
+            // --- ROBUST CALCULATION LOGIC START ---
             const safeNum = (val: any) => Number(val) || 0;
 
             const basic = safeNum(extracted.basic_salary_monthly);
             const hra = safeNum(extracted.hra_monthly);
             const special = safeNum(extracted.special_allowance_monthly);
-            const pf = safeNum(extracted.pf_employee_monthly);
-            const proTax = safeNum(extracted.professional_tax_monthly);
-            const deductions = safeNum(extracted.other_deductions_monthly);
             const grossProvided = safeNum(extracted.total_gross_monthly);
 
+            // 1. Determine Actual Monthly Gross
             // If gross is 0 or missing, calculate it from components
-            let monthlyGross = grossProvided > 0 ? grossProvided : (basic + hra + special);
+            const monthlyGross = grossProvided > 0 ? grossProvided : (basic + hra + special);
 
-            const monthlyDeductions = pf + proTax + deductions;
+            // 2. Auto-Calculate Missing Statutory Deductions
 
-            const inHand = monthlyGross - monthlyDeductions;
+            // PF Logic: If extracted PF is 0 but Basic > 0, assume 12% mandatory deduction
+            let pf = safeNum(extracted.pf_employee_monthly);
+            if (pf === 0 && basic > 0) {
+                pf = basic * 0.12;
+                console.log("Auto-calculated PF:", pf);
+            }
 
-            console.log("Calc Debug:", { monthlyGross, monthlyDeductions, inHand });
+            // ESI Logic: If Gross < 21,000, Employee contributes 0.75%
+            let esi = 0;
+            if (monthlyGross < 21000 && monthlyGross > 0) {
+                esi = monthlyGross * 0.0075;
+                console.log("Auto-calculated ESI:", esi);
+            }
 
+            // Professional Tax Logic: If 0, assume standard ~200 INR (varies by state, but safer to assume deduction)
+            let proTax = safeNum(extracted.professional_tax_monthly);
+            if (proTax === 0 && monthlyGross > 0) {
+                proTax = 200;
+            }
+
+            const otherDeductions = safeNum(extracted.other_deductions_monthly);
+
+            // 3. Calculate Totals
+            // We combine ESI into 'otherDeductions' for simplicity in the UI if ESI doesn't have its own field
+            const totalMonthlyDeductions = pf + proTax + otherDeductions + esi;
+            const inHand = monthlyGross - totalMonthlyDeductions;
+
+            console.log("Final Calc:", { monthlyGross, totalMonthlyDeductions, inHand });
+
+            // 4. Update Data Object for UI Consistency
+            // We update the extracted object so the List View matches the calculated totals
+            const processedData: SalaryData = {
+                ...extracted,
+                pf_employee_monthly: pf,
+                professional_tax_monthly: proTax,
+                other_deductions_monthly: otherDeductions + esi, // Rolling ESI into others for display
+                total_gross_monthly: monthlyGross
+            };
+
+            setData(processedData);
             setInHandMonthly(inHand);
-            setDeductionsMonthly(monthlyDeductions);
+            setDeductionsMonthly(totalMonthlyDeductions);
             setView('dashboard');
+            // --- ROBUST CALCULATION LOGIC END ---
 
         } catch (err) {
             console.error(err);
@@ -133,11 +165,15 @@ const SalaryAudit: React.FC = () => {
 
     const getChartData = () => {
         if (!data || !inHandMonthly) return [];
+
+        // Ensure values are numbers for chart
+        const safeVal = (n: any) => Number(n) || 0;
+
         return [
             { name: 'In-Hand', value: inHandMonthly * 12, color: '#10b981', desc: 'Liquid Cash' }, // Emerald
-            { name: 'PF/Gratuity', value: (data.pf_employer_annual || 0) + (data.gratuity_annual || 0) + ((data.pf_employee_monthly || 0) * 12), color: '#3b82f6', desc: 'Locked Retirement' }, // Blue
-            { name: 'Taxes', value: ((data.professional_tax_monthly || 0) * 12) + ((data.insurance_benefit_annual || 0)), color: '#ef4444', desc: 'Deductions' }, // Red
-            { name: 'Variable', value: data.variable_performance_bonus_annual || 0, color: '#a855f7', desc: 'Performance Based' }, // Purple
+            { name: 'PF/Gratuity', value: (safeVal(data.pf_employer_annual) + safeVal(data.gratuity_annual) + (safeVal(data.pf_employee_monthly) * 12)), color: '#3b82f6', desc: 'Locked Retirement' }, // Blue
+            { name: 'Taxes', value: ((safeVal(data.professional_tax_monthly) * 12) + safeVal(data.insurance_benefit_annual)), color: '#ef4444', desc: 'Deductions' }, // Red
+            { name: 'Variable', value: safeVal(data.variable_performance_bonus_annual), color: '#a855f7', desc: 'Performance Based' }, // Purple
         ].filter(item => item.value > 0);
     };
 
@@ -221,7 +257,7 @@ const SalaryAudit: React.FC = () => {
                                     <span className="text-slate-400 text-sm font-medium uppercase tracking-wider">Net In-Hand</span>
                                     <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded">LIQUID</span>
                                 </div>
-                                <div className="text-4xl font-display font-bold text-white tracking-tight">{formatINR(inHandMonthly)}</div>
+                                <div className="text-4xl font-display font-bold text-white tracking-tight">{formatINR(inHandMonthly ?? 0)}</div>
                             </div>
 
                             {/* Card 2: Deductions */}
@@ -278,9 +314,9 @@ const SalaryAudit: React.FC = () => {
                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                         <div className="text-center">
                                             <div className="text-xl font-bold text-emerald-400">
-                                                {data?.ctc_annual || (data?.total_gross_monthly * 12)
-                                                    ? (inHandMonthly / (data.ctc_annual || data.total_gross_monthly * 12) * 100).toFixed(0)
-                                                    : 0}%
+                                                {((data?.ctc_annual || (data?.total_gross_monthly ?? 0) * 12)
+                                                    ? ((inHandMonthly ?? 0) / (data?.ctc_annual || (data?.total_gross_monthly ?? 0) * 12) * 100)
+                                                    : 0).toFixed(0)}%
                                             </div>
                                             <div className="text-[9px] text-slate-500 uppercase font-bold">In-Hand</div>
                                         </div>
@@ -292,36 +328,46 @@ const SalaryAudit: React.FC = () => {
                                             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                                             <span className="text-slate-300">Basic Pay</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.basic_salary_monthly)}</span>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.basic_salary_monthly ?? 0)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                                             <span className="text-slate-300">HRA</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.hra_monthly)}</span>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.hra_monthly ?? 0)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-purple-500"></div>
                                             <span className="text-slate-300">Allowances</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.special_allowance_monthly)}</span>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.special_allowance_monthly ?? 0)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-red-400"></div>
                                             <span className="text-slate-300">PF (Employee)</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.pf_employee_monthly)}</span>
+                                        {/* Uses the safe, auto-calculated PF from data object */}
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.pf_employee_monthly ?? 0)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-red-500"></div>
                                             <span className="text-slate-300">Prof. Tax</span>
                                         </div>
-                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.professional_tax_monthly)}</span>
+                                        <span className="font-mono font-medium text-slate-200">{formatINR(data?.professional_tax_monthly ?? 0)}</span>
                                     </div>
+                                    {(data?.other_deductions_monthly ?? 0) > 0 && (
+                                        <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                                                <span className="text-slate-300">Other / ESI</span>
+                                            </div>
+                                            <span className="font-mono font-medium text-slate-200">{formatINR(data?.other_deductions_monthly ?? 0)}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -335,8 +381,8 @@ const SalaryAudit: React.FC = () => {
                                         </h3>
                                     </div>
                                     <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-                                        {data?.red_flags?.length > 0 ? (
-                                            data.red_flags.map((flagStr, i) => {
+                                        {(data?.red_flags?.length || 0) > 0 ? (
+                                            (data?.red_flags || []).map((flagStr, i) => {
                                                 const { title, severity } = getRiskCategory(flagStr);
                                                 return (
                                                     <div
@@ -385,8 +431,8 @@ const SalaryAudit: React.FC = () => {
                                         </h3>
                                     </div>
                                     <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
-                                        {data?.negotiation_tips?.length > 0 ? (
-                                            data.negotiation_tips.map((tipStr, i) => {
+                                        {(data?.negotiation_tips?.length || 0) > 0 ? (
+                                            (data?.negotiation_tips || []).map((tipStr, i) => {
                                                 const { title } = getNegotiationCategory(tipStr);
                                                 return (
                                                     <div

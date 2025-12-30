@@ -2,5 +2,8 @@ fastapi
 uvicorn
 python-multipart
 google-generativeai
-pymongo
 python-dotenv
+supabase
+PyJWT
+cryptography
+requests

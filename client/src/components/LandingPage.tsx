@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ScanSearch, FileText, Upload, ShieldCheck, Zap, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Upload, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 const LandingPage: React.FC = () => {
     const navigate = useNavigate();

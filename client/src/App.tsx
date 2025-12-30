@@ -19,12 +19,7 @@ const App: React.FC = () => {
 
         {/* Protected Dashboard Routes */}
         <Route element={<AuthGuard />}>
-          <Route path="/" element={
-            <DashboardLayout>
-              {/* This handles / -> /dashboard redirection logic if needed, but we used children in layout */}
-              {/* We need to restructure DashboardLayout or just wrap routes */}
-            </DashboardLayout>
-          } />
+
 
           {/* 
               Wait, since DashboardLayout wraps children, we should use a Layout Route pattern 

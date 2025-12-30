@@ -5,10 +5,10 @@ import {
     ResponsiveContainer
 } from 'recharts';
 import {
-    FileText,
-    AlertTriangle,
-    TrendingUp,
     HandCoins,
+    TrendingUp,
+    AlertTriangle,
+    FileText,
     Banknote,
     Loader2
 } from 'lucide-react';
@@ -57,7 +57,6 @@ const Overview: React.FC = () => {
 
                     // Calculate Stats
                     let risks = 0;
-                    let savings = 0; // Mock calculation logic for now as data structure varies
                     let value = 0;
 
                     data.forEach(audit => {
