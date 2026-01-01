@@ -14,18 +14,18 @@ DocSentry is an AI-powered financial intelligence dashboard that audits salary s
 
 ## Key Features
 
-### 1. 💰 Salary Audit
+### 1.  Salary Audit
 - **CTC Decoding**: Breaks down "Cost to Company" vs. real "In-Hand" salary.
 - **Hidden Deductions**: Identifies tax leaks and hidden employer deductions.
 - **Inflation Impact**: Calculates real earnings adjusted for inflation.
 - **Negotiation Coach**: AI-generated tips to negotiate a better package.
 
-### 2. 🏦 Loan Decoder
+### 2.  Loan Decoder
 - **True Cost Analysis**: Reveals the *actual* interest paid vs. principal.
 - **Risk Detection**: Scans for "Floating Rate" risks, "Prepayment Penalties", and "Forced Insurance".
 - **Indian Banking Context**: Specially tuned for Indian loan terminologies (MCLR, RLLR).
 
-### 3. 📈 Investment Analyzer
+### 3.  Investment Analyzer
 - **XIRR Calculation**: Computes real returns (XIRR) from uploaded statements.
 - **Policy Audit**: Checks for lock-in periods and hidden charges in insurance policies.
 - **AI Advisor**: Chat with your documents to ask specific questions ("Can I withdraw money now?").
