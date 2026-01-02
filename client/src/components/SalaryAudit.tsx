@@ -5,6 +5,7 @@ import { formatINR } from '../utils/financialMath';
 import { API_BASE_URL } from '../apiConfig';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import ChatAdvisor from './ChatAdvisor';
+import { EmailGenerator } from './EmailGenerator';
 import { useAuth } from '../context/AuthContext';
 import {
     Banknote,
@@ -461,6 +462,13 @@ const SalaryAudit: React.FC = () => {
                                                                         }`}>
                                                                         {tipStr}
                                                                     </div>
+                                                                    {expandedNeg === i && (
+                                                                        <EmailGenerator
+                                                                            category={title}
+                                                                            companyName={data?.company_name || ""}
+                                                                            tipContext={tipStr}
+                                                                        />
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                             <ChevronDown size={16} className={`text-slate-600 transition-transform mt-1 ${expandedNeg === i ? 'rotate-180' : ''}`} />
