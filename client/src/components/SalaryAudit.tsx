@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatINR } from '../utils/financialMath';
 import { API_BASE_URL } from '../apiConfig';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import ChatAdvisor from './ChatAdvisor';
+import ChatAdvisor, { type ChatAdvisorRef } from './ChatAdvisor';
 import { EmailGenerator } from './EmailGenerator';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -60,6 +60,7 @@ interface SalaryData {
 }
 
 const SalaryAudit: React.FC = () => {
+    const chatAdvisorRef = React.useRef<ChatAdvisorRef>(null);
     const [file, setFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<SalaryData | null>(null);
@@ -446,9 +447,9 @@ const SalaryAudit: React.FC = () => {
                                                     <div
                                                         key={i}
                                                         onClick={() => setExpandedNeg(expandedNeg === i ? null : i)}
-                                                        className={`group border rounded-xl p-4 transition-all cursor-pointer ${expandedNeg === i
-                                                            ? 'bg-purple-500/10 border-purple-500/30'
-                                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                                        className={`group border rounded-xl p-4 transition-all cursor-pointer relative ${expandedNeg === i
+                                                            ? 'bg-purple-500/10 border-purple-500/30 z-10'
+                                                            : 'bg-white/5 border-white/10 hover:bg-white/10 z-0'
                                                             }`}
                                                     >
                                                         <div className="flex justify-between items-start">
@@ -467,6 +468,7 @@ const SalaryAudit: React.FC = () => {
                                                                             category={title}
                                                                             companyName={data?.company_name || ""}
                                                                             tipContext={tipStr}
+                                                                            onDraft={(subj, body) => chatAdvisorRef.current?.draftEmail(subj, body)}
                                                                         />
                                                                     )}
                                                                 </div>
@@ -497,7 +499,7 @@ const SalaryAudit: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="flex-1 bg-slate-950/20 relative min-h-0">
-                                    <ChatAdvisor context={data} embedded={true} />
+                                    <ChatAdvisor ref={chatAdvisorRef} context={data} embedded={true} />
                                 </div>
                             </div>
                         </div>

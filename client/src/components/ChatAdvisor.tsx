@@ -14,12 +14,27 @@ interface Message {
     parts: string;
 }
 
-const ChatAdvisor: React.FC<ChatAdvisorProps> = ({ context, embedded = false }) => {
+export interface ChatAdvisorRef {
+    draftEmail: (subject: string, body: string) => void;
+}
+
+const ChatAdvisor = React.forwardRef<ChatAdvisorRef, ChatAdvisorProps>(({ context, embedded = false }, ref) => {
     const [isOpen, setIsOpen] = useState(embedded); // Default open if embedded
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    React.useImperativeHandle(ref, () => ({
+        draftEmail: (subject: string, body: string) => {
+            // Add a special system message or user message representing the draft request
+            const draftMsg: Message = {
+                role: 'model',
+                parts: `Creating a draft email for you:\n\n**Subject:** ${subject}\n\n${body}`
+            };
+            setMessages(prev => [...prev, draftMsg]);
+        }
+    }));
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -193,6 +208,6 @@ const ChatAdvisor: React.FC<ChatAdvisorProps> = ({ context, embedded = false }) 
             </div>
         </div>
     );
-};
+});
 
 export default ChatAdvisor;

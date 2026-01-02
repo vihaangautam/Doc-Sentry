@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Mail, Copy, Check, X, Sparkles } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React from 'react';
+import { Mail, Sparkles } from 'lucide-react';
 
 interface EmailGeneratorProps {
     category: string;
     companyName: string;
     tipContext: string;
+    onDraft: (subject: string, body: string) => void;
 }
 
 const getTemplate = (category: string, company: string, context: string) => {
@@ -47,98 +47,22 @@ const getTemplate = (category: string, company: string, context: string) => {
     }
 }
 
-export const EmailGenerator: React.FC<EmailGeneratorProps> = ({ category, companyName, tipContext }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [template, setTemplate] = useState({ subject: '', body: '' });
-    const [copied, setCopied] = useState(false);
+export const EmailGenerator: React.FC<EmailGeneratorProps> = ({ category, companyName, tipContext, onDraft }) => {
 
-    useEffect(() => {
-        if (isOpen) {
-            setTemplate(getTemplate(category, companyName, tipContext));
-        }
-    }, [isOpen, category, companyName, tipContext]);
-
-    const handleCopy = () => {
-        const fullText = `Subject: ${template.subject}\n\n${template.body}`;
-        navigator.clipboard.writeText(fullText);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    const handleDraft = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const template = getTemplate(category, companyName, tipContext);
+        onDraft(template.subject, template.body);
     };
 
     return (
-        <>
-            <button
-                onClick={(e) => { e.stopPropagation(); setIsOpen(true); }}
-                className="mt-3 flex items-center gap-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg border border-emerald-500/20 transition-all w-fit group"
-            >
-                <Mail size={14} />
-                Draft Negotiation Email
-                <Sparkles size={12} className="opacity-50 group-hover:opacity-100 transition-opacity" />
-            </button>
-
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
-                        onClick={() => setIsOpen(false)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden"
-                        >
-                            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
-                                <h3 className="font-bold text-slate-200 flex items-center gap-2">
-                                    <Mail size={18} className="text-emerald-400" />
-                                    Draft Email: {category}
-                                </h3>
-                                <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white">
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <div className="p-6 space-y-4">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Subject Line</label>
-                                    <input
-                                        value={template.subject}
-                                        onChange={(e) => setTemplate({ ...template, subject: e.target.value })}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-emerald-500/50 text-sm font-medium"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Email Body</label>
-                                    <textarea
-                                        value={template.body}
-                                        onChange={(e) => setTemplate({ ...template, body: e.target.value })}
-                                        rows={8}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-emerald-500/50 text-sm leading-relaxed resize-none font-sans"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-between items-center">
-                                <span className="text-xs text-slate-500">Edit before sending</span>
-                                <button
-                                    onClick={handleCopy}
-                                    className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold text-sm transition-all shadow-lg ${copied
-                                            ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                                            : 'bg-white text-slate-900 hover:bg-slate-200'
-                                        }`}
-                                >
-                                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                                    {copied ? 'Copied to Clipboard!' : 'Copy Text'}
-                                </button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </>
+        <button
+            onClick={handleDraft}
+            className="mt-3 flex items-center gap-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg border border-emerald-500/20 transition-all w-fit group"
+        >
+            <Mail size={14} />
+            Draft Negotiation Email
+            <Sparkles size={12} className="opacity-50 group-hover:opacity-100 transition-opacity" />
+        </button>
     );
 };
