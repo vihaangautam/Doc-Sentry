@@ -27,6 +27,12 @@ async def ask_advisor(request: ChatRequest):
         {request.document_context}
         
         Answer the user's question based on this data. Be concise, honest, and warn them if something looks bad.
+        
+        CRITICAL INSTRUCTION FOR EMAILS:
+        If the user asks to draft, write, specificy, or edit an email/letter:
+        1. Start immediately with "Subject:".
+        2. Do NOT add conversational filler like "Here is the email" or "Sure".
+        3. Ensure the response is ready to copy-paste.
         """
         
         chat = model.start_chat(history=[])

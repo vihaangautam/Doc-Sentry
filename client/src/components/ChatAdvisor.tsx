@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../apiConfig';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, TrendingUp } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface ChatAdvisorProps {
     context: any;
@@ -19,6 +20,7 @@ export interface ChatAdvisorRef {
 }
 
 const ChatAdvisor = React.forwardRef<ChatAdvisorRef, ChatAdvisorProps>(({ context, embedded = false }, ref) => {
+    const { session } = useAuth(); // Get auth session
     const [isOpen, setIsOpen] = useState(embedded); // Default open if embedded
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
@@ -27,12 +29,18 @@ const ChatAdvisor = React.forwardRef<ChatAdvisorRef, ChatAdvisorProps>(({ contex
 
     React.useImperativeHandle(ref, () => ({
         draftEmail: (subject: string, body: string) => {
-            // Add a special system message or user message representing the draft request
+            // Fix: Add User message first to maintain Turn Alternation (User -> Model -> User -> Model)
+            const userRequest: Message = {
+                role: 'user',
+                parts: `Draft a negotiation email for ${subject}`
+            };
+
+            // Structured response for easier parsing
             const draftMsg: Message = {
                 role: 'model',
-                parts: `Creating a draft email for you:\n\n**Subject:** ${subject}\n\n${body}`
+                parts: `Creating a draft email for you:\n\nSubject: ${subject}\n\n${body}`
             };
-            setMessages(prev => [...prev, draftMsg]);
+            setMessages(prev => [...prev, userRequest, draftMsg]);
         }
     }));
 
@@ -57,16 +65,60 @@ const ChatAdvisor = React.forwardRef<ChatAdvisorRef, ChatAdvisorProps>(({ contex
                 document_context: context,
                 history: messages,
                 question: userMsg.parts
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${session?.access_token}`
+                }
             });
 
             const aiMsg: Message = { role: 'model', parts: response.data.answer };
             setMessages(prev => [...prev, aiMsg]);
         } catch (err) {
             console.error(err);
-            setMessages(prev => [...prev, { role: 'model', parts: "Sorry, I encountered an error connecting to the AI." }]);
+            setMessages(prev => [...prev, { role: 'model', parts: "Sorry, I encountered an error connecting to the AI. Please try again." }]);
         } finally {
             setLoading(false);
         }
+    };
+
+    // Helper to render message content with special handling for emails
+    const renderMessageContent = (msg: Message) => {
+        // Detect if it's an email draft
+        if (msg.role === 'model' && msg.parts.includes("Subject:") && msg.parts.includes("Dear Hiring Team")) {
+            // Basic parsing (robust enough for our controlled input)
+            const lines = msg.parts.split('\n');
+            const subjectLine = lines.find(l => l.startsWith('Subject:'))?.replace('Subject:', '').trim() || "Negotiation";
+
+            // Extract body: everything after the subject line
+            // We find index of subject, and take everything after it + 2 lines
+            const subjectIndex = lines.findIndex(l => l.startsWith('Subject:'));
+            const bodyContent = lines.slice(subjectIndex + 2).join('\n').trim();
+
+            return (
+                <div className="flex flex-col gap-2 w-full">
+                    <p className="text-slate-300 text-sm mb-1">Here is a draft for you:</p>
+                    <div className="bg-slate-950 rounded-lg border border-slate-700 overflow-hidden relative group">
+                        <div className="bg-slate-900 border-b border-slate-700 px-3 py-2 flex justify-between items-center">
+                            <span className="text-xs font-bold text-emerald-400 truncate pr-4">Subject: {subjectLine}</span>
+                            <button
+                                onClick={() => navigator.clipboard.writeText(`Subject: ${subjectLine}\n\n${bodyContent}`)}
+                                className="text-slate-400 hover:text-white transition-colors"
+                                title="Copy Email"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                            </button>
+                        </div>
+                        <div className="p-3 bg-slate-950/50">
+                            <p className="text-xs text-slate-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                {bodyContent}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        return msg.parts; // Default text render
     };
 
     if (embedded) {
@@ -100,11 +152,11 @@ const ChatAdvisor = React.forwardRef<ChatAdvisorRef, ChatAdvisorProps>(({ contex
                     )}
                     {messages.map((msg, idx) => (
                         <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${msg.role === 'user'
+                            <div className={`max-w-[90%] rounded-2xl px-4 py-2 text-sm ${msg.role === 'user'
                                 ? 'bg-emerald-600 text-white rounded-br-none'
-                                : 'bg-slate-700 text-slate-200 rounded-bl-none'
+                                : 'bg-slate-700 text-slate-200 rounded-bl-none w-full'
                                 }`}>
-                                {msg.parts}
+                                {renderMessageContent(msg)}
                             </div>
                         </div>
                     ))}
