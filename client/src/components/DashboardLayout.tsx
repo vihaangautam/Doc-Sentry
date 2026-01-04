@@ -8,6 +8,7 @@ import {
     HandCoins,
     Banknote,
     ChevronRight,
+    ChevronLeft,
     LogOut,
     ScanLine,
     Crown
@@ -18,7 +19,7 @@ interface DashboardLayoutProps {
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-    const [isSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const location = useLocation();
     const navigate = useNavigate();
     const { signOut } = useAuth();
@@ -47,19 +48,26 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 className="hidden md:flex flex-col z-20 bg-[#0B0F19] border-r border-[#1e293b] relative h-screen"
             >
                 {/* Logo Area */}
-                <div className="h-20 flex items-center px-6 border-b border-[#1e293b]/50">
+                <div className="h-20 flex items-center px-6 border-b border-[#1e293b]/50 relative">
                     <div className="flex items-center gap-3">
-                        <div className="bg-indigo-600 p-2 rounded-lg">
+                        <div className="bg-indigo-600 p-2 rounded-lg shrink-0">
                             <ScanLine className="text-white" size={20} />
                         </div>
                         {isSidebarOpen && (
-                            <div className="animate-fade-in">
+                            <div className="animate-fade-in whitespace-nowrap overflow-hidden">
                                 <h1 className="font-display font-bold text-lg text-white leading-tight">
                                     Doc <span className="text-indigo-500">Sentry</span>
                                 </h1>
                             </div>
                         )}
                     </div>
+                    {/* Collapsible Toggle */}
+                    <button
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#0B0F19] border border-[#1e293b] rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:border-indigo-500 transition-all z-50 shadow-lg"
+                    >
+                        {isSidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+                    </button>
                 </div>
 
                 {/* Navigation Items */}
