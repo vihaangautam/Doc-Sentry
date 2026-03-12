@@ -56,6 +56,7 @@ DocSentry is an AI-powered financial intelligence dashboard that audits salary s
     ```bash
     cd server
     pip install -r requirements.txt
+    
     uvicorn main:app --reload
     ```
 
