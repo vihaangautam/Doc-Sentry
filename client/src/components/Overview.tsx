@@ -36,6 +36,7 @@ const Overview: React.FC = () => {
         potentialValue: 0
     });
     const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
+    const [allAudits, setAllAudits] = useState<AuditRecord[]>([]);
     const [hasData, setHasData] = useState(false);
 
     useEffect(() => {
@@ -54,6 +55,7 @@ const Overview: React.FC = () => {
                 if (data && data.length > 0) {
                     setHasData(true);
                     setRecentAudits(data.slice(0, 5));
+                    setAllAudits(data);
 
                     // Calculate Stats
                     let risks = 0;
@@ -102,14 +104,88 @@ const Overview: React.FC = () => {
         );
     }
 
-    // Chart Data (Mocking trend for now based on stats)
-    const chartData = [
-        { name: 'Mon', value: stats.totalAudits > 0 ? 1 : 0 },
-        { name: 'Tue', value: stats.totalAudits > 2 ? 3 : 0 },
-        { name: 'Wed', value: stats.totalAudits > 5 ? 2 : 0 },
-        { name: 'Thu', value: stats.totalAudits > 8 ? 5 : 0 },
-        { name: 'Fri', value: stats.totalAudits },
-    ];
+    // --- Build dynamic chart data from real audit records ---
+    // Generate last 7 day labels
+    const buildDayLabels = () => {
+        const labels: string[] = [];
+        const now = new Date();
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(d.getDate() - i);
+            labels.push(d.toISOString().split('T')[0]); // "YYYY-MM-DD"
+        }
+        return labels;
+    };
+
+    const dayLabels = buildDayLabels();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    // Group audits into per-day buckets
+    const auditsByDay: Record<string, AuditRecord[]> = {};
+    dayLabels.forEach(d => { auditsByDay[d] = []; });
+    allAudits.forEach(audit => {
+        const day = audit.created_at.split('T')[0];
+        if (auditsByDay[day]) {
+            auditsByDay[day].push(audit);
+        }
+    });
+
+    // Chart 1: Cumulative total audits over last 7 days
+    const auditsChartData = (() => {
+        let cumulative = 0;
+        // Count audits before the 7-day window so cumulative starts correctly
+        allAudits.forEach(a => {
+            if (a.created_at.split('T')[0] < dayLabels[0]) cumulative++;
+        });
+        return dayLabels.map(day => {
+            cumulative += auditsByDay[day].length;
+            const d = new Date(day);
+            return { name: dayNames[d.getDay()], value: cumulative };
+        });
+    })();
+
+    // Chart 2: Cumulative risk flags over last 7 days
+    const riskChartData = (() => {
+        let cumulative = 0;
+        // Count risk flags before the 7-day window
+        allAudits.forEach(a => {
+            if (a.created_at.split('T')[0] < dayLabels[0]) {
+                const json = a.analysis_json || {};
+                if (json.red_flags && Array.isArray(json.red_flags)) {
+                    cumulative += json.red_flags.length;
+                }
+            }
+        });
+        return dayLabels.map(day => {
+            auditsByDay[day].forEach(a => {
+                const json = a.analysis_json || {};
+                if (json.red_flags && Array.isArray(json.red_flags)) {
+                    cumulative += json.red_flags.length;
+                }
+            });
+            const d = new Date(day);
+            return { name: dayNames[d.getDay()], value: cumulative };
+        });
+    })();
+
+    // Chart 3: Per-audit value for the bar chart (last 5 audits, newest first → reversed for left-to-right)
+    const valueBarData = (() => {
+        const recent = allAudits.slice(0, 5).reverse(); // oldest first for left→right display
+        return recent.map(audit => {
+            const json = audit.analysis_json || {};
+            let val = 0;
+            if (audit.audit_type === 'investment') {
+                val = json.maturity_benefit_illustration || 0;
+            } else if (audit.audit_type === 'salary') {
+                val = json.ctc_annual || 0;
+            } else if (audit.audit_type === 'loan') {
+                val = json.loan_amount || json.principal || 0;
+            }
+            return val;
+        });
+    })();
+
+    const maxBarValue = Math.max(...valueBarData, 1); // Avoid division by 0
 
     return (
         <div className="space-y-8">
@@ -137,7 +213,7 @@ const Overview: React.FC = () => {
 
                         <div className="h-16 w-full -ml-2 min-w-0 min-h-[64px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData}>
+                                <LineChart data={auditsChartData}>
                                     <Line type="monotone" dataKey="value" stroke="#22d3ee" strokeWidth={2} dot={false} />
                                 </LineChart>
                             </ResponsiveContainer>
@@ -157,10 +233,9 @@ const Overview: React.FC = () => {
                                 <AlertTriangle size={20} />
                             </div>
                         </div>
-                        {/* Reusing same chart for visual consistency/placeholder */}
                         <div className="h-16 w-full -ml-2 min-w-0 min-h-[64px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData}>
+                                <LineChart data={riskChartData}>
                                     <Line type="monotone" dataKey="value" stroke="#ef4444" strokeWidth={2} dot={false} />
                                 </LineChart>
                             </ResponsiveContainer>
@@ -183,9 +258,28 @@ const Overview: React.FC = () => {
                             </div>
                         </div>
                         <div className="mt-6 flex items-end gap-1 h-10">
-                            <div className="w-2 bg-emerald-500/20 rounded-t h-[40%]"></div>
-                            <div className="w-2 bg-emerald-500/40 rounded-t h-[60%]"></div>
-                            <div className="w-2 bg-emerald-500/60 rounded-t h-[80%]"></div>
+                            {valueBarData.length > 0 ? (
+                                valueBarData.map((val, i) => {
+                                    const heightPct = Math.max((val / maxBarValue) * 100, 5); // min 5% so bars are always visible
+                                    const opacity = 0.2 + (i / (valueBarData.length - 1 || 1)) * 0.6;
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="w-2 rounded-t transition-all duration-500"
+                                            style={{
+                                                height: `${heightPct}%`,
+                                                backgroundColor: `rgba(16, 185, 129, ${opacity})`,
+                                            }}
+                                        />
+                                    );
+                                })
+                            ) : (
+                                <>
+                                    <div className="w-2 bg-emerald-500/20 rounded-t h-[20%]"></div>
+                                    <div className="w-2 bg-emerald-500/30 rounded-t h-[20%]"></div>
+                                    <div className="w-2 bg-emerald-500/40 rounded-t h-[20%]"></div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
