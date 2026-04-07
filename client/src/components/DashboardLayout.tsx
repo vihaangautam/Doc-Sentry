@@ -20,6 +20,7 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [showComingSoon, setShowComingSoon] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
     const { signOut } = useAuth();
@@ -115,7 +116,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                             <div className="relative z-10">
                                 <h4 className="font-bold text-white text-sm mb-1">Premium Plan</h4>
                                 <p className="text-xs text-slate-400 mb-3">Unlimited audits & advanced exports</p>
-                                <button className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold text-xs rounded-lg transition-colors">
+                                <button onClick={() => setShowComingSoon(true)} className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold text-xs rounded-lg transition-colors">
                                     Upgrade Now
                                 </button>
                             </div>
@@ -130,6 +131,43 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 </div>
 
             </motion.aside>
+
+            {/* Premium Coming Soon Modal */}
+            <AnimatePresence>
+                {showComingSoon && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        exit={{ opacity: 0 }} 
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.9, y: 10 }} 
+                            animate={{ scale: 1, y: 0 }} 
+                            exit={{ scale: 0.9, y: 10 }} 
+                            className="bg-[#0f1522] border border-[#1e293b] p-8 rounded-2xl max-w-sm w-full text-center shadow-2xl relative"
+                        >
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                            
+                            <div className="relative z-10">
+                                <div className="bg-gradient-to-br from-amber-400 to-orange-400 text-slate-900 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5 shadow-lg shadow-amber-500/20">
+                                    <Crown size={32} />
+                                </div>
+                                <h3 className="text-2xl font-display font-bold text-white mb-2">Premium Plan</h3>
+                                <p className="text-slate-400 text-sm mb-6">
+                                    Unlimited audits, advanced exports, and personal advisor features are coming soon! Stay tuned.
+                                </p>
+                                <button 
+                                    onClick={() => setShowComingSoon(false)} 
+                                    className="w-full bg-[#1e293b] hover:bg-slate-700/80 border border-slate-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col relative z-10 h-screen overflow-hidden">

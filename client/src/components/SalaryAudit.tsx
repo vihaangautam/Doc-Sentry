@@ -219,12 +219,12 @@ const SalaryAudit: React.FC = () => {
                                         onChange={handleFileChange}
                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                     />
-                                    <div className="flex flex-col items-center gap-4 relative z-10">
-                                        <div className={`p-4 rounded-full transition-all duration-300 ${file ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400 group-hover:text-emerald-400 group-hover:scale-110'}`}>
+                                    <div className="flex flex-col items-center gap-4 relative z-10 w-full">
+                                        <div className={`p-4 rounded-full transition-all duration-300 ${file ? 'bg-emerald-500/20 text-emerald-400 w-16 h-16 flex items-center justify-center shrink-0' : 'bg-slate-800 text-slate-400 group-hover:text-emerald-400 group-hover:scale-110 w-16 h-16 flex items-center justify-center shrink-0'}`}>
                                             {file ? <CheckCircle2 size={32} /> : <UploadCloud size={32} />}
                                         </div>
-                                        <div className="space-y-1">
-                                            <p className="font-semibold text-slate-200 text-lg">
+                                        <div className="space-y-1 w-full px-4 text-center">
+                                            <p className="font-semibold text-slate-200 text-lg block truncate w-full max-w-[280px] mx-auto">
                                                 {file ? file.name : "Drop offer letter here"}
                                             </p>
                                             <p className="text-slate-500 text-sm">
