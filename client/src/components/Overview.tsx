@@ -106,34 +106,72 @@ const Overview: React.FC = () => {
 
     // --- Build dynamic chart data from real audit records ---
 
-    // Chart 1: Month/Date wise daily usage trend
-    const auditsChartData = (() => {
-        const points = [];
-        // Generate mock data for the last 14 days representing usage trends
-        for (let i = 14; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            // Mock value that looks like daily stats varying up and down
-            const baseValue = i === 0 ? 3 : Math.floor(Math.abs(Math.sin((14 - i) * 0.5)) * 4 + 1);
-            points.push({ name: label, value: baseValue });
-        }
-        return points;
-    })();
+    const processChartData = (type: 'count' | 'risk') => {
+        const points: { name: string, value: number }[] = [];
+        if (!allAudits || allAudits.length === 0) return points;
 
-    // Chart 2: Month/Date wise risk flags trend
-    const riskChartData = (() => {
-        const points = [];
-        for (let i = 14; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            // Mock value that looks like daily stats varying up and down
-            const baseValue = i === 0 ? 5 : Math.floor(Math.abs(Math.cos((14 - i) * 0.7)) * 6 + 1);
-            points.push({ name: label, value: baseValue });
-        }
+        // Take up to 6 most recent audits
+        const recent = allAudits.slice(0, 6).reverse(); 
+        const grouped: Record<string, { date: Date, count: number, risks: number }> = {};
+        
+        recent.forEach(audit => {
+            const d = new Date(audit.created_at);
+            d.setHours(0, 0, 0, 0);
+            const key = d.getTime().toString();
+            if (!grouped[key]) grouped[key] = { date: d, count: 0, risks: 0 };
+            grouped[key].count += 1;
+            const json = audit.analysis_json || {};
+            grouped[key].risks += json.red_flags && Array.isArray(json.red_flags) ? json.red_flags.length : 0;
+        });
+
+        const sortedKeys = Object.keys(grouped).sort((a, b) => Number(a) - Number(b));
+        
+        // Add an initial 0 point so the graph starts from 0 before first peak
+        const firstItem = grouped[sortedKeys[0]];
+        const beforeFirst = new Date(firstItem.date);
+        beforeFirst.setDate(beforeFirst.getDate() - 1);
+        points.push({ 
+            name: beforeFirst.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 
+            value: 0 
+        });
+
+        sortedKeys.forEach((key, index) => {
+            const currentItem = grouped[key];
+            const currentDate = currentItem.date;
+            
+            points.push({
+                name: currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                value: type === 'count' ? currentItem.count : currentItem.risks
+            });
+            
+            if (index < sortedKeys.length - 1) {
+                const nextItem = grouped[sortedKeys[index + 1]];
+                const nextDate = nextItem.date;
+                const diffTime = nextDate.getTime() - currentDate.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                // If there's a day gap between two audits, drop to 0 in between to form discrete spikes (the M shape)
+                if (diffDays > 1) {
+                    const dummyDate = new Date(currentDate.getTime() + (diffTime / 2));
+                    points.push({ name: dummyDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), value: 0 });
+                }
+            }
+        });
+        
+        // Add a final 0 point after the last peak
+        const lastItem = grouped[sortedKeys[sortedKeys.length - 1]];
+        const afterLast = new Date(lastItem.date);
+        afterLast.setDate(afterLast.getDate() + 1);
+        points.push({ 
+            name: afterLast.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 
+            value: 0 
+        });
+
         return points;
-    })();
+    };
+
+    const auditsChartData = processChartData('count');
+    const riskChartData = processChartData('risk');
 
     // Chart 3: Per-audit value for the bar chart (last 5 audits, oldest→newest left→right)
     const valueBarData = (() => {
